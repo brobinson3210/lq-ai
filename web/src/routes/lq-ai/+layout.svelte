@@ -7,6 +7,12 @@
 	 * - No access token → redirect to /lq-ai/login.
 	 * - Access token but `must_change_password` → redirect to /lq-ai/change-password.
 	 * - Otherwise: render the child route.
+	 *
+	 * The gate runs on mount AND stays subscribed: if the session is cleared
+	 * later (refresh rejected, logout in another tab), `onSignOut` bounces the
+	 * user to the login screen. Without that subscription the page stays put
+	 * and every subsequent call renders a bare "Not authenticated" in whatever
+	 * component made it.
 	 */
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -14,7 +20,7 @@
 
 	import { auth } from '$lib/lq-ai/auth/store';
 	import { authApi } from '$lib/lq-ai/api';
-	import { LQAIApiError, PasswordChangeRequiredError } from '$lib/lq-ai/api/client';
+	import { LQAIApiError, PasswordChangeRequiredError, onSignOut } from '$lib/lq-ai/api/client';
 	import DualBrandingFooter from '$lib/lq-ai/components/DualBrandingFooter.svelte';
 	import TopTabBar from '$lib/lq-ai/components/TopTabBar.svelte';
 	import AmbientTrustChrome from '$lib/lq-ai/components/AmbientTrustChrome.svelte';
@@ -62,10 +68,15 @@
 	}
 
 	let activityHandler: (() => void) | null = null;
+	let signOutUnsub: (() => void) | null = null;
 
 	onMount(() => {
 		gate();
 		if (!isAuthExempt($page.url.pathname)) {
+			// The session can die long after the gate ran — a rejected refresh,
+			// a logout in another tab. Bounce rather than leaving the user on a
+			// page whose every request now 401s.
+			signOutUnsub = onSignOut(() => goto('/lq-ai/login?reason=session-expired'));
 			startTracker(() => goto('/lq-ai/login?reason=idle-timeout'));
 			activityHandler = () => noteActivity();
 			(['mousedown', 'keydown', 'scroll', 'touchstart'] as const).forEach((e) =>
@@ -76,6 +87,8 @@
 
 	onDestroy(() => {
 		stopTracker();
+		signOutUnsub?.();
+		signOutUnsub = null;
 		if (activityHandler) {
 			(['mousedown', 'keydown', 'scroll', 'touchstart'] as const).forEach((e) =>
 				window.removeEventListener(e, activityHandler!)

@@ -134,7 +134,7 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
 	return fetch(`${LQ_AI_API_BASE_URL}${path}`, init);
 }
 
-async function refreshOnce(): Promise<boolean> {
+async function performRefresh(): Promise<boolean> {
 	const refresh_token = getRefreshToken();
 	if (!refresh_token) {
 		return false;
@@ -155,6 +155,30 @@ async function refreshOnce(): Promise<boolean> {
 		expires_in: data.expires_in
 	});
 	return true;
+}
+
+/**
+ * The refresh currently in flight, if any. Concurrent callers await it
+ * instead of starting their own.
+ *
+ * Refresh tokens are single-use: `POST /auth/refresh` revokes the presented
+ * session row and mints a new one (api/app/api/auth.py — "Rotate: revoke this
+ * session, mint a fresh one"). So two parallel refreshes are fatal — the
+ * second presents an already-revoked token, the server answers 401
+ * `no_matching_session`, and the caller tears down a session that was
+ * perfectly healthy. Any page that fans out requests (the stakeholder detail
+ * view fires four) hits this the moment its access token expires mid-flight.
+ */
+let inFlightRefresh: Promise<boolean> | null = null;
+
+function refreshOnce(): Promise<boolean> {
+	if (inFlightRefresh) {
+		return inFlightRefresh;
+	}
+	inFlightRefresh = performRefresh().finally(() => {
+		inFlightRefresh = null;
+	});
+	return inFlightRefresh;
 }
 
 async function parseErrorBody(res: Response): Promise<ErrorBody | null> {
@@ -292,15 +316,15 @@ export function onSignOut(handler: () => void): () => void {
 	if (!browser) {
 		return () => undefined;
 	}
-	const unsub = auth.subscribe((state) => {
-		if (!state.access_token) {
+	// Only a signed-in → signed-out transition counts. Svelte stores fire on
+	// subscribe, so seed from the current state: a page loaded while already
+	// logged out must not report a sign-out that never happened.
+	let hadToken = get(auth).access_token !== null;
+	return auth.subscribe((state) => {
+		const hasToken = state.access_token !== null;
+		if (hadToken && !hasToken) {
 			handler();
 		}
+		hadToken = hasToken;
 	});
-	// Drop the initial fire if we already had no token.
-	const initial = get(auth);
-	if (initial.access_token) {
-		// no-op — first real change will fire correctly
-	}
-	return unsub;
 }

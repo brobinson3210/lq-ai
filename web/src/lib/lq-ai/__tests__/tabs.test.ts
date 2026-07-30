@@ -5,7 +5,7 @@ describe('tabs', () => {
   const adminUser: User = { id: '1', email: 'a@x.io', is_admin: true, must_change_password: false, role: 'admin' };
   const memberUser: User = { id: '2', email: 'm@x.io', is_admin: false, must_change_password: false, role: 'member' };
 
-  it('defines nine core tabs plus autonomous (opt-in) and admin (tabular added in M3-C3, autonomous added in M4-C2)', () => {
+  it('defines ten core tabs plus autonomous (opt-in) and admin (tabular added in M3-C3, autonomous added in M4-C2, management added with the Management tab)', () => {
     const ids = TABS.map((t) => t.id);
     expect(ids).toEqual([
       'home',
@@ -17,6 +17,7 @@ describe('tabs', () => {
       'tabular',
       'saved-prompts',
       'learn',
+      'management',
       'autonomous',
       'admin'
     ]);
@@ -47,7 +48,8 @@ describe('tabs', () => {
       'knowledge',
       'playbooks',
       'tabular',
-      'saved-prompts'
+      'saved-prompts',
+      'management'
     ] as TabId[]) {
       expect(isTabVisible(id, memberUser)).toBe(true);
       expect(isTabVisible(id, adminUser)).toBe(true);
@@ -62,6 +64,14 @@ describe('tabs', () => {
     expect(activeTabFor('/lq-ai/tabular')).toBe('tabular');
     expect(activeTabFor('/lq-ai/tabular/new')).toBe('tabular');
     expect(activeTabFor('/lq-ai/tabular/abc-123')).toBe('tabular');
+  });
+
+  it('marks management tab as available and recognises its subroutes', () => {
+    expect(isTabAvailable('management')).toBe(true);
+    expect(activeTabFor('/lq-ai/management')).toBe('management');
+    expect(activeTabFor('/lq-ai/management/stakeholders')).toBe('management');
+    expect(activeTabFor('/lq-ai/management/kpis')).toBe('management');
+    expect(activeTabFor('/lq-ai/management/roadmap/budget')).toBe('management');
   });
 
   it('marks every M1 tab as available (last placeholder closed)', () => {

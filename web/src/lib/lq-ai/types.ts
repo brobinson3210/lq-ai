@@ -1261,6 +1261,275 @@ export interface TabularPreviewCostResponse {
 	per_tier_breakdown: Record<string, number>;
 }
 
+// ----- Stakeholders (Management tab) -----
+
+/** Mirrors the api CHECK constraint; grouped into spaces by RELATIONSHIP_SPACES. */
+export type StakeholderType =
+	| 'board_chair'
+	| 'director'
+	| 'ceo'
+	| 'c_suite_peer'
+	| 'investor_sponsor'
+	| 'lender'
+	| 'customer'
+	| 'regulator'
+	| 'auditor'
+	| 'outside_counsel'
+	| 'media'
+	| 'other';
+
+export type StakeholderStance =
+	| 'champion'
+	| 'supportive'
+	| 'neutral'
+	| 'skeptical'
+	| 'opposed'
+	| 'unknown';
+
+/** Manually set by the GC; null = unset. */
+export type StakeholderHealth = 'green' | 'yellow' | 'red';
+
+export type InteractionChannel =
+	| 'meeting'
+	| 'call'
+	| 'email'
+	| 'message'
+	| 'board_meeting'
+	| 'social'
+	| 'other';
+
+export type CommitmentDirection = 'we_owe' | 'they_owe';
+export type CommitmentStatus = 'open' | 'done' | 'dropped';
+
+export interface StakeholderCreate {
+	full_name: string;
+	stakeholder_type: StakeholderType;
+	organization?: string | null;
+	role_title?: string | null;
+	committee_seats?: string | null;
+	overall_health?: StakeholderHealth | null;
+	cadence_target_days?: number | null;
+	interests_md?: string | null;
+	communication_preferences_md?: string | null;
+	notes_md?: string | null;
+}
+
+export type StakeholderUpdate = Partial<StakeholderCreate>;
+
+/**
+ * One row of GET /stakeholders (and the single-row GET). Create fields plus
+ * server-assigned ids/timestamps and the computed recency/commitment rollups.
+ */
+export interface Stakeholder {
+	id: string;
+	owner_id: string;
+	full_name: string;
+	stakeholder_type: StakeholderType;
+	organization?: string | null;
+	role_title?: string | null;
+	committee_seats?: string | null;
+	overall_health?: StakeholderHealth | null;
+	cadence_target_days?: number | null;
+	interests_md?: string | null;
+	communication_preferences_md?: string | null;
+	notes_md?: string | null;
+	/** Computed: ISO datetime of the most recent interaction; null when none. */
+	last_interaction_at: string | null;
+	/** Computed: whole days since the last interaction; null when none. */
+	days_since_last_interaction: number | null;
+	/** Computed: count of open commitments in both directions. */
+	open_commitments_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface StakeholderInteractionCreate {
+	/** ISO datetime. */
+	occurred_at: string;
+	channel: InteractionChannel;
+	summary_md: string;
+}
+
+export interface StakeholderInteraction extends StakeholderInteractionCreate {
+	id: string;
+	stakeholder_id?: string;
+	created_at?: string;
+}
+
+export interface StakeholderCommitmentCreate {
+	direction: CommitmentDirection;
+	description: string;
+	/** YYYY-MM-DD. */
+	due_date?: string | null;
+	/** Defaults to 'open' server-side. */
+	status?: CommitmentStatus;
+}
+
+export interface StakeholderCommitment {
+	id: string;
+	direction: CommitmentDirection;
+	description: string;
+	due_date?: string | null;
+	status: CommitmentStatus;
+	stakeholder_id?: string;
+	created_at?: string;
+}
+
+/**
+ * One row of GET /stakeholder-commitments — the cross-stakeholder rollup.
+ * Commitment fields plus enough stakeholder identity to group + link.
+ */
+export interface StakeholderCommitmentRollupRow extends StakeholderCommitment {
+	stakeholder_id: string;
+	full_name: string;
+	stakeholder_type: StakeholderType;
+}
+
+export interface StakeholderCommitmentUpdate {
+	status?: CommitmentStatus;
+	description?: string;
+	due_date?: string | null;
+	direction?: CommitmentDirection;
+}
+
+export interface StakeholderPositionCreate {
+	topic: string;
+	stance: StakeholderStance;
+	note_md?: string | null;
+	/** YYYY-MM-DD. */
+	as_of: string;
+}
+
+export interface StakeholderPosition extends StakeholderPositionCreate {
+	id: string;
+	stakeholder_id?: string;
+	created_at?: string;
+}
+
+// ----- Management KPIs (Management tab) -----
+
+/** Mirrors the api CHECK constraint on management KPI rows. */
+export type KpiDepartment = 'legal' | 'compliance';
+export type KpiScope = 'department' | 'individual';
+export type KpiCadence = 'monthly' | 'quarterly';
+export type KpiDirection = 'higher_is_better' | 'lower_is_better';
+
+/**
+ * Create/update shape for a legal-team member (the KPI roster, not the
+ * platform Teams feature — see `TeamMember` above for that unrelated type).
+ */
+export interface TeamMemberCreate {
+	name: string;
+	role_title: string;
+	department: KpiDepartment;
+	seniority?: string | null;
+	strengths_md?: string | null;
+	development_areas_md?: string | null;
+	notes_md?: string | null;
+}
+
+export type TeamMemberUpdate = Partial<TeamMemberCreate>;
+
+/** One row of GET /management/team-members — create fields + id/timestamps + kpi_count. */
+export interface TeamMemberRead {
+	id: string;
+	name: string;
+	role_title: string;
+	department: KpiDepartment;
+	seniority?: string | null;
+	strengths_md?: string | null;
+	development_areas_md?: string | null;
+	notes_md?: string | null;
+	/** Computed: number of (non-deleted) KPIs owned by this member. */
+	kpi_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Create shape for a KPI. All numeric values (baseline / target / values)
+ * travel as JSON strings — the backend stores Decimals; parse with Number()
+ * only for math/plotting, display from the string.
+ */
+export interface KpiCreate {
+	name: string;
+	department: KpiDepartment;
+	scope: KpiScope;
+	/** Required when scope='individual'; null/omitted for department scope. */
+	team_member_id?: string | null;
+	/** Free-form unit: '%', 'USD', 'days', 'count', … */
+	unit: string;
+	cadence: KpiCadence;
+	direction: KpiDirection;
+	baseline?: string | null;
+	target?: string | null;
+	rationale_md?: string | null;
+}
+
+export type KpiUpdate = Partial<KpiCreate>;
+
+/**
+ * One row of GET /management/kpis — create fields plus server-computed
+ * latest/previous datapoint rollups and the direction-aware attainment
+ * percentage (>100 always means beating target, whichever the direction).
+ */
+export interface KpiRead {
+	id: string;
+	name: string;
+	department: KpiDepartment;
+	scope: KpiScope;
+	team_member_id?: string | null;
+	unit: string;
+	cadence: KpiCadence;
+	direction: KpiDirection;
+	baseline?: string | null;
+	target?: string | null;
+	rationale_md?: string | null;
+	/** Computed: 'YYYY-MM' or 'YYYY-Qn' of the most recent datapoint; null when none. */
+	latest_period: string | null;
+	latest_value: string | null;
+	previous_value: string | null;
+	datapoint_count: number;
+	/** Computed, direction-aware; null when no target or no datapoints. */
+	attainment_pct: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface KpiDatapointCreate {
+	/** 'YYYY-MM' (monthly KPIs) or 'YYYY-Qn' (quarterly KPIs). */
+	period: string;
+	value: string;
+	note_md?: string | null;
+}
+
+/** One datapoint row; `id`/`created_at` are present on stored rows. */
+export interface KpiDatapoint {
+	period: string;
+	value: string;
+	note_md?: string | null;
+	id?: string;
+	created_at?: string;
+}
+
+/** GET /management/kpis/{id}/series — the KPI plus its full ascending series. */
+export interface KpiSeries {
+	kpi: KpiRead;
+	datapoints: KpiDatapoint[];
+}
+
+/** GET /management/dashboard — department sections + per-member rollup. */
+export interface KpiDashboard {
+	departments: {
+		legal: KpiRead[];
+		compliance: KpiRead[];
+	};
+	team: Array<{
+		member: TeamMemberRead;
+		kpis: KpiRead[];
+	}>;
+}
+
 // ----- Citation Ledger (P1-A3 / P1-C1) -----
 
 export interface LedgerPassage {
@@ -1322,4 +1591,179 @@ export interface ChatLedger {
 	chat_id: string;
 	entries: LedgerEntry[];
 	gates: LedgerGate[];
+}
+
+// ----- Management AI (Management tab) -----
+
+/** Job types on /api/v1/management/ai-jobs — mirrors the api CHECK constraint. */
+export type MgmtAiJobType = 'pre_meeting_brief' | 'review_prep' | 'kpi_draft';
+
+/** Job lifecycle — poll until 'done' or 'error'. */
+export type MgmtAiJobStatus = 'pending' | 'running' | 'done' | 'error';
+
+/** One static interview question from GET /management/kpi-wizard/questions. */
+export interface MgmtKpiWizardQuestion {
+	id: string;
+	/** 'A' objective / 'B' metric families / 'C' vanity check / 'D' baselines-targets. */
+	section: string;
+	prompt: string;
+	hint: string;
+	optional: boolean;
+}
+
+/** GET /api/v1/management/kpi-wizard/questions response. */
+export interface MgmtKpiWizardQuestionsRead {
+	questions: MgmtKpiWizardQuestion[];
+}
+
+/** One collected wizard answer, keyed on the static question id. */
+export interface MgmtKpiWizardAnswer {
+	question_id: string;
+	/** Non-empty; optional questions may simply be omitted from the list. */
+	answer: string;
+}
+
+/**
+ * POST /api/v1/management/ai-jobs body. Pairing enforced server-side (422):
+ * pre_meeting_brief → stakeholder_id; review_prep → team_member_id;
+ * kpi_draft → answers (non-empty), no subject id.
+ */
+export interface MgmtAiJobCreate {
+	job_type: MgmtAiJobType;
+	stakeholder_id?: string | null;
+	team_member_id?: string | null;
+	answers?: MgmtKpiWizardAnswer[] | null;
+}
+
+/**
+ * One row of GET /management/ai-jobs (list shape — everything except
+ * `params`, which can be large). List rows already carry result_md /
+ * result_json, so "past briefs" panels need no follow-up detail fetch.
+ */
+export interface MgmtAiJobListRow {
+	id: string;
+	job_type: MgmtAiJobType;
+	status: MgmtAiJobStatus;
+	stakeholder_id: string | null;
+	team_member_id: string | null;
+	created_at: string;
+	completed_at: string | null;
+	result_md: string | null;
+	result_json: Record<string, unknown> | null;
+	/** User-presentable failure message when status='error'. */
+	error: string | null;
+}
+
+/** GET /management/ai-jobs/{id} — the list shape plus request-side params. */
+export interface MgmtAiJob extends MgmtAiJobListRow {
+	params: Record<string, unknown> | null;
+}
+
+/**
+ * One drafted KPI inside a kpi_draft job's result_json — maps 1:1 onto the
+ * managementKpisApi.createKpi body (scope is always 'department').
+ */
+export interface MgmtKpiDraftItem {
+	name: string;
+	department: KpiDepartment;
+	scope: 'department';
+	unit: string;
+	cadence: KpiCadence;
+	direction: KpiDirection;
+	baseline: string | null;
+	target: string | null;
+	rationale_md: string;
+}
+
+/** One deliberately-rejected candidate metric, with the why. */
+export interface MgmtKpiDraftNotMeasured {
+	name: string;
+	reason: string;
+}
+
+/** The validated kpi_draft payload stored in result_json. */
+export interface MgmtKpiDraftResult {
+	kpis: MgmtKpiDraftItem[];
+	not_measured: MgmtKpiDraftNotMeasured[];
+}
+
+// ----- Management documents (Management tab) -----
+
+/** POST /api/v1/management/documents body. doc_type is free text (≤60 chars). */
+export interface MgmtDocumentCreate {
+	title: string;
+	doc_type: string;
+	content_md: string;
+	doc_date?: string | null;
+	author?: string | null;
+	/** Comma-separated free-text tags. */
+	related_tags?: string | null;
+}
+
+/** PATCH /api/v1/management/documents/{id} — all optional; null clears. */
+export type MgmtDocumentUpdate = Partial<MgmtDocumentCreate>;
+
+/**
+ * One row of GET /management/documents — all metadata, NO content_md.
+ * `content_chars` is the character count of the omitted body.
+ */
+export interface MgmtDocumentListRow {
+	id: string;
+	owner_id: string;
+	title: string;
+	doc_type: string;
+	doc_date: string | null;
+	author: string | null;
+	related_tags: string | null;
+	created_at: string;
+	updated_at: string;
+	deleted_at: string | null;
+	content_chars: number;
+}
+
+/** GET /management/documents/{id} — everything, including the body. */
+export interface MgmtDocument extends MgmtDocumentListRow {
+	content_md: string;
+}
+
+// --------------------
+
+// --------------------
+// Management tab — Urgent Matters (GET /management/urgent-matters)
+// --------------------
+
+/** Which source produced an urgent item. */
+export type UrgentKind = 'commitment' | 'cadence' | 'kpi';
+
+/**
+ * One urgent-matters row. Every item carries the same shape regardless of
+ * `kind` so the UI renders one list component; source-specific fields are
+ * null when they don't apply.
+ *
+ * `days_until_due` is negative when overdue, and null for cadence and KPI
+ * items (which have no due date).
+ */
+export interface UrgentItem {
+	kind: UrgentKind;
+	title: string;
+	why: string;
+	next_step: string;
+	due_date: string | null;
+	days_until_due: number | null;
+	stakeholder_id: string | null;
+	stakeholder_name: string | null;
+	kpi_id: string | null;
+	link: string;
+}
+
+/**
+ * GET /management/urgent-matters — `red` = act today, `yellow` = the next
+ * 5 days. The combined list is capped at 10 items, reds surviving first.
+ * The server has already applied the ranking; the client renders in order
+ * and never re-sorts.
+ */
+export interface UrgentMattersResponse {
+	generated_at: string;
+	red: UrgentItem[];
+	yellow: UrgentItem[];
 }

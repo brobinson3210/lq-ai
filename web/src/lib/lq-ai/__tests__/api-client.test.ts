@@ -84,6 +84,49 @@ describe('apiRequest', () => {
 		expect(getAccessToken()).toBe('newtok');
 	});
 
+	it('coalesces concurrent refreshes into one rotation', async () => {
+		// Refresh tokens are single-use: the server revokes the presented
+		// session and mints a new one. Two parallel refreshes would make the
+		// second present a revoked token, 401, and tear down a healthy
+		// session — which is how a page that fans out requests used to log
+		// the user out the moment its access token expired mid-flight.
+		setSession({ access_token: 'tok', refresh_token: 'rtok', expires_in: 900 });
+
+		let refreshCalls = 0;
+		const fetchSpy = vi.fn(async (url: string, init?: RequestInit) => {
+			if (url.endsWith('/auth/refresh')) {
+				refreshCalls += 1;
+				if (refreshCalls > 1) {
+					// What the server would say to a replayed refresh token.
+					return mockResponse(401, { detail: 'Invalid refresh token' });
+				}
+				return mockResponse(200, {
+					access_token: 'newtok',
+					refresh_token: 'newrtok',
+					token_type: 'Bearer',
+					expires_in: 900
+				});
+			}
+			const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+			return auth === 'Bearer newtok'
+				? mockResponse(200, { ok: true })
+				: mockResponse(401, { detail: { code: 'unauthorized', message: 'expired' } });
+		});
+		global.fetch = fetchSpy as unknown as typeof fetch;
+
+		// Four parallel calls, exactly as the stakeholder detail page fires.
+		const results = await Promise.all([
+			apiRequest<{ ok: boolean }>('/stakeholders/1'),
+			apiRequest<{ ok: boolean }>('/stakeholders/1/positions'),
+			apiRequest<{ ok: boolean }>('/stakeholders/1/commitments'),
+			apiRequest<{ ok: boolean }>('/stakeholders/1/interactions')
+		]);
+
+		expect(results.every((r) => r.ok)).toBe(true);
+		expect(refreshCalls).toBe(1);
+		expect(getAccessToken()).toBe('newtok');
+	});
+
 	it('throws PasswordChangeRequiredError on 403 with that code', async () => {
 		setSession({ access_token: 'tok', expires_in: 900 });
 		const fetchSpy = vi.fn(async () =>

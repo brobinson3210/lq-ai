@@ -20,6 +20,7 @@ export type TabId =
   | 'tabular'
   | 'saved-prompts'
   | 'learn'
+  | 'management'
   | 'autonomous'
   | 'admin';
 
@@ -52,6 +53,7 @@ export const TABS: readonly TabDef[] = [
   { id: 'tabular',       label: 'Tabular',       icon: '📊', route: '/lq-ai/tabular',        available: true },
   { id: 'saved-prompts', label: 'Saved Prompts', icon: '📌', route: '/lq-ai/saved-prompts',  available: true },
   { id: 'learn',         label: 'Learn',         icon: '📖', route: '/lq-ai/learn',           available: true },
+  { id: 'management',    label: 'Management',    icon: '🧭', route: '/lq-ai/management',      available: true },
   { id: 'autonomous',    label: 'Autonomous',    icon: '🤖', route: '/lq-ai/autonomous',       available: true },
   { id: 'admin',         label: 'Admin',         icon: '🛡',  route: '/lq-ai/admin/audit-log', adminOnly: true, available: true }
 ] as const;

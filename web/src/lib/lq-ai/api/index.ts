@@ -28,3 +28,8 @@ export * as usersApi from './users';
 export * as enhancePromptApi from './enhancePrompt';
 export * as autonomousApi from './autonomous';
 export * as ledgerApi from './ledger';
+export * as stakeholdersApi from './stakeholders';
+export * as managementKpisApi from './managementKpis';
+export * as managementAiApi from './managementAi';
+export * as managementDocumentsApi from './managementDocuments';
+export * as managementUrgentApi from './managementUrgent';

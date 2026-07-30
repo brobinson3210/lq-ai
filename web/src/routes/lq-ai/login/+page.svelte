@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	import { authApi, bootstrapApi } from '$lib/lq-ai/api';
 	import { LQAIApiError } from '$lib/lq-ai/api/client';
@@ -14,6 +15,18 @@
 	// hint never appears to operators who have already rotated.
 	let bootstrapLogsHint: string | null = null;
 	let hintCopied = false;
+
+	/**
+	 * Why the shell sent the user here, when it did. Without this the screen
+	 * is indistinguishable from a normal visit and an expired session reads
+	 * as "the app logged me out for no reason".
+	 */
+	const SIGN_OUT_REASONS: Record<string, string> = {
+		'idle-timeout': 'You were signed out after a period of inactivity. Please sign in again.',
+		'session-expired': 'Your session expired. Please sign in again.'
+	};
+
+	$: signedOutNotice = SIGN_OUT_REASONS[$page.url.searchParams.get('reason') ?? ''] ?? null;
 
 	async function submit() {
 		error = null;
@@ -91,6 +104,16 @@
 					<p class="lq-text-caption" style="color: var(--lq-text-tertiary);">Open-Source Legal AI</p>
 				</div>
 			</div>
+
+			{#if signedOutNotice}
+				<div
+					class="text-sm rounded px-2 py-1 border"
+					style="color: var(--lq-warn); background: var(--lq-warn-soft); border-color: var(--lq-warn-border);"
+					data-testid="lq-ai-login-signed-out-notice"
+				>
+					{signedOutNotice}
+				</div>
+			{/if}
 
 			<label class="block">
 				<span class="lq-text-label">Email</span>
