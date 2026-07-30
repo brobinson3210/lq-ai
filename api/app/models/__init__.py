@@ -30,6 +30,9 @@ from app.models.enhance_prompt import EnhancePromptInteraction
 from app.models.file import File
 from app.models.inference import InferenceRoutingLog
 from app.models.knowledge import KnowledgeBase, KnowledgeBaseFile
+from app.models.management_ai import MgmtAiJob
+from app.models.management_document import MgmtDocument
+from app.models.management_kpi import MgmtKpi, MgmtKpiDatapoint, MgmtTeamMember
 from app.models.mcp import MCPToolCache
 from app.models.mcp_oauth import MCPOAuthState, MCPOAuthToken
 from app.models.message_authority_citation import MessageAuthorityCitation
@@ -42,6 +45,12 @@ from app.models.project_knowledge_base import ProjectKnowledgeBase
 from app.models.research import ResearchClusterMetadata, ResearchOpinionMetadata
 from app.models.saved_prompt import SavedPrompt
 from app.models.slack_workspace import SlackWorkspace
+from app.models.stakeholder import (
+    Stakeholder,
+    StakeholderCommitment,
+    StakeholderInteraction,
+    StakeholderPosition,
+)
 from app.models.tabular import TabularExecution
 from app.models.team import Team, TeamMember
 from app.models.teams_tenant import TeamsTenant
@@ -80,6 +89,11 @@ __all__ = [
     "MessageAuthorityCitation",
     "MessageCaselawCitation",
     "MessageToolSource",
+    "MgmtAiJob",
+    "MgmtDocument",
+    "MgmtKpi",
+    "MgmtKpiDatapoint",
+    "MgmtTeamMember",
     "OrganizationProfile",
     "Playbook",
     "PlaybookExecution",
@@ -93,6 +107,10 @@ __all__ = [
     "ResearchOpinionMetadata",
     "SavedPrompt",
     "SlackWorkspace",
+    "Stakeholder",
+    "StakeholderCommitment",
+    "StakeholderInteraction",
+    "StakeholderPosition",
     "TabularExecution",
     "Team",
     "TeamMember",

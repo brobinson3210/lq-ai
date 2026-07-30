@@ -39,6 +39,10 @@ from app.api import (
     integrations_teams,
     internal,
     knowledge_bases,
+    management_ai,
+    management_documents,
+    management_kpis,
+    management_urgent,
     mcp_oauth,
     models,
     organization_profile,
@@ -47,6 +51,7 @@ from app.api import (
     research,
     saved_prompts,
     skills,
+    stakeholders,
     tabular,
     teams,
     user_skills,
@@ -102,6 +107,35 @@ api_router.include_router(files.router, dependencies=_active)
 api_router.include_router(knowledge_bases.router, dependencies=_active)
 api_router.include_router(organization_profile.router, dependencies=_active)
 api_router.include_router(saved_prompts.router, dependencies=_active)
+# Management tab — Stakeholders module. Two routers from one module:
+# the /stakeholders CRUD + sub-resources, and the flat
+# /stakeholder-commitments rollup + PATCH surface. Owner-scoped
+# (cross-user access = 404), same posture as projects.
+api_router.include_router(stakeholders.router, dependencies=_active)
+api_router.include_router(stakeholders.commitments_router, dependencies=_active)
+# Management tab — KPIs module: /management/team-members roster,
+# /management/kpis definitions + datapoints/series, and the one-call
+# /management/dashboard feed. Owner-scoped (cross-user access = 404),
+# same posture as stakeholders.
+api_router.include_router(management_kpis.router, dependencies=_active)
+# Management tab — Documents module: /management/documents private
+# document space (inline markdown work product, v1). Shares the
+# /management URL prefix with the KPIs module but is its own router.
+# Owner-scoped (cross-user access = 404), same posture as KPIs.
+api_router.include_router(management_documents.router, dependencies=_active)
+# Management tab — AI-features module: the static /management/kpi-wizard
+# questions script plus the /management/ai-jobs draft-job surface
+# (pre-meeting brief / review prep / KPI draft). Third router sharing
+# the /management URL prefix. Owner-scoped (cross-user access = 404),
+# same posture as the sibling Management modules; results are drafts
+# (draft-then-confirm — nothing writes to dossiers/KPIs directly).
+api_router.include_router(management_ai.router, dependencies=_active)
+# Management tab — Urgent Matters: the one-call GET
+# /management/urgent-matters triage feed (red = act today, yellow =
+# act this week) over commitments, cadence breaches, and red-band
+# KPIs. Fourth router sharing the /management URL prefix. Computed and
+# read-only (no tables, no audit rows); owner-scoped like its siblings.
+api_router.include_router(management_urgent.router, dependencies=_active)
 api_router.include_router(user_skills.router, dependencies=_active)
 api_router.include_router(teams.user_router, dependencies=_active)
 api_router.include_router(teams.admin_router, dependencies=_active)

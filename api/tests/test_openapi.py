@@ -219,6 +219,30 @@ EXPECTED_PATHS: frozenset[str] = frozenset(
         "/api/v1/mcp/oauth",
         # PR5b Task 7 — resume pending tool call
         "/api/v1/chats/{chat_id}/tool-calls/{pending_call_id}",
+        # Management tab — Stakeholders module
+        "/api/v1/stakeholders",
+        "/api/v1/stakeholders/{stakeholder_id}",
+        "/api/v1/stakeholders/{stakeholder_id}/interactions",
+        "/api/v1/stakeholders/{stakeholder_id}/commitments",
+        "/api/v1/stakeholders/{stakeholder_id}/positions",
+        "/api/v1/stakeholder-commitments",
+        "/api/v1/stakeholder-commitments/{commitment_id}",
+        # Management tab — KPIs module
+        "/api/v1/management/team-members",
+        "/api/v1/management/team-members/{team_member_id}",
+        "/api/v1/management/kpis",
+        "/api/v1/management/kpis/{kpi_id}",
+        "/api/v1/management/kpis/{kpi_id}/datapoints",
+        "/api/v1/management/kpis/{kpi_id}/series",
+        "/api/v1/management/dashboard",
+        "/api/v1/management/documents",
+        "/api/v1/management/documents/{document_id}",
+        # Management tab — AI-features module
+        "/api/v1/management/kpi-wizard/questions",
+        "/api/v1/management/ai-jobs",
+        "/api/v1/management/ai-jobs/{job_id}",
+        # Management tab — Urgent Matters (computed triage feed)
+        "/api/v1/management/urgent-matters",
     }
 )
 
@@ -342,7 +366,32 @@ async def test_openapi_paths_match_sketch() -> None:
     # Donna #3 adds two new paths (137 -> 139):
     # /api/v1/admin/tool-providers
     # /api/v1/admin/tool-providers/{provider_type}
-    assert len(actual) == 139
+    # Management tab Stakeholders module adds seven new paths (139 -> 146):
+    # /api/v1/stakeholders
+    # /api/v1/stakeholders/{stakeholder_id}
+    # /api/v1/stakeholders/{stakeholder_id}/interactions
+    # /api/v1/stakeholders/{stakeholder_id}/commitments
+    # /api/v1/stakeholders/{stakeholder_id}/positions
+    # /api/v1/stakeholder-commitments
+    # /api/v1/stakeholder-commitments/{commitment_id}
+    # Management tab KPIs module adds seven new paths (146 -> 153):
+    # /api/v1/management/team-members
+    # /api/v1/management/team-members/{team_member_id}
+    # /api/v1/management/kpis
+    # /api/v1/management/kpis/{kpi_id}
+    # /api/v1/management/kpis/{kpi_id}/datapoints
+    # /api/v1/management/kpis/{kpi_id}/series
+    # /api/v1/management/dashboard
+    # Management tab Documents module adds two new paths (153 -> 155):
+    # /api/v1/management/documents
+    # /api/v1/management/documents/{document_id}
+    # Management tab AI-features module adds three new paths (155 -> 158):
+    # /api/v1/management/kpi-wizard/questions
+    # /api/v1/management/ai-jobs
+    # /api/v1/management/ai-jobs/{job_id}
+    # Management tab Urgent Matters adds one new path (158 -> 159):
+    # /api/v1/management/urgent-matters
+    assert len(actual) == 159
 
 
 @pytest.mark.unit

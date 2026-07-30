@@ -341,6 +341,48 @@ IMPLEMENTED_ROUTES: set[tuple[str, str]] = {
     ("GET", "/api/v1/mcp/oauth"),
     # PR5b Task 7 — resume pending tool call
     ("POST", "/api/v1/chats/{chat_id}/tool-calls/{pending_call_id}"),
+    # Management tab — Stakeholders module
+    ("POST", "/api/v1/stakeholders"),
+    ("GET", "/api/v1/stakeholders"),
+    ("GET", "/api/v1/stakeholders/{stakeholder_id}"),
+    ("PATCH", "/api/v1/stakeholders/{stakeholder_id}"),
+    ("DELETE", "/api/v1/stakeholders/{stakeholder_id}"),
+    ("POST", "/api/v1/stakeholders/{stakeholder_id}/interactions"),
+    ("GET", "/api/v1/stakeholders/{stakeholder_id}/interactions"),
+    ("POST", "/api/v1/stakeholders/{stakeholder_id}/commitments"),
+    ("GET", "/api/v1/stakeholders/{stakeholder_id}/commitments"),
+    ("POST", "/api/v1/stakeholders/{stakeholder_id}/positions"),
+    ("GET", "/api/v1/stakeholders/{stakeholder_id}/positions"),
+    ("GET", "/api/v1/stakeholder-commitments"),
+    ("PATCH", "/api/v1/stakeholder-commitments/{commitment_id}"),
+    # Management tab — KPIs module
+    ("POST", "/api/v1/management/team-members"),
+    ("GET", "/api/v1/management/team-members"),
+    ("GET", "/api/v1/management/team-members/{team_member_id}"),
+    ("PATCH", "/api/v1/management/team-members/{team_member_id}"),
+    ("DELETE", "/api/v1/management/team-members/{team_member_id}"),
+    ("POST", "/api/v1/management/kpis"),
+    ("GET", "/api/v1/management/kpis"),
+    ("GET", "/api/v1/management/kpis/{kpi_id}"),
+    ("PATCH", "/api/v1/management/kpis/{kpi_id}"),
+    ("DELETE", "/api/v1/management/kpis/{kpi_id}"),
+    ("POST", "/api/v1/management/kpis/{kpi_id}/datapoints"),
+    ("GET", "/api/v1/management/kpis/{kpi_id}/datapoints"),
+    ("GET", "/api/v1/management/kpis/{kpi_id}/series"),
+    ("GET", "/api/v1/management/dashboard"),
+    # Management tab — Documents module
+    ("POST", "/api/v1/management/documents"),
+    ("GET", "/api/v1/management/documents"),
+    ("GET", "/api/v1/management/documents/{document_id}"),
+    ("PATCH", "/api/v1/management/documents/{document_id}"),
+    ("DELETE", "/api/v1/management/documents/{document_id}"),
+    # Management tab — AI-features module (kpi wizard + draft jobs)
+    ("GET", "/api/v1/management/kpi-wizard/questions"),
+    ("POST", "/api/v1/management/ai-jobs"),
+    ("GET", "/api/v1/management/ai-jobs"),
+    ("GET", "/api/v1/management/ai-jobs/{job_id}"),
+    # Management tab — Urgent Matters (computed triage feed)
+    ("GET", "/api/v1/management/urgent-matters"),
 }
 
 
