@@ -254,3 +254,8 @@ LAUNCH-POST.md
 
 # stack smoke failure diagnostics (scripts/stack-smoke.sh)
 stack-smoke-logs/
+
+# Container-side venv for the Management-tab MCP connector (run.sh §3 creates it
+# on the repo mount so it never touches the container's global site-packages).
+# The `.venv` rule above does not match this name.
+management-mcp/.venv-linux/
