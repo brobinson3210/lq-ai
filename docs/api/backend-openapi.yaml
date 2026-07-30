@@ -70,6 +70,16 @@ tags:
     description: Word add-in unauthenticated handshake surfaces (M3-B8)
   - name: autonomous
     description: Per-user autonomous agent session management — read, halt (M4-A4-i)
+  - name: stakeholders
+    description: Management tab — per-user stakeholder relationship records (interactions, commitments, positions)
+  - name: management-kpis
+    description: Management tab — per-user legal/compliance team roster and KPI tracking (definitions, datapoints, dashboard)
+  - name: management-documents
+    description: Management tab — per-user private document space (inline markdown work product; board packs, minutes, memos)
+  - name: management-ai
+    description: Management tab — background AI draft jobs (pre-meeting briefs, review prep, KPI wizard drafts); draft-then-confirm, per-instance private
+  - name: management-urgent
+    description: Management tab — the computed "Urgent Matters" triage feed (red = act today, yellow = act this week) over commitments, cadence breaches, and red-band KPIs
 
 # ============================================================
 # PATHS
@@ -5611,6 +5621,896 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
 
+  # ----------- STAKEHOLDERS (Management tab) -----------
+  /api/v1/stakeholders:
+    get:
+      tags: [stakeholders]
+      summary: List the caller's stakeholders
+      description: |
+        Active (non-deleted) stakeholders owned by the caller, newest
+        first. ``stakeholder_type`` filters to one type; ``space``
+        filters to a named type group (board, c-suite, investors,
+        customers, regulators, outside-firms, media);
+        ``needs_attention=true`` keeps only rows whose
+        ``days_since_last_interaction`` exceeds their
+        ``cadence_target_days``. Cross-user rows never appear.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stakeholder_type
+          in: query
+          schema:
+            type: string
+            enum: [board_chair, director, ceo, c_suite_peer, investor_sponsor,
+                   lender, customer, regulator, auditor, outside_counsel, media, other]
+        - name: space
+          in: query
+          schema:
+            type: string
+            enum: [board, c-suite, investors, customers, regulators, outside-firms, media]
+        - name: needs_attention
+          in: query
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Stakeholders (with computed relationship fields)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Stakeholder'}
+    post:
+      tags: [stakeholders]
+      summary: Create a stakeholder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StakeholderCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Stakeholder'}
+
+  /api/v1/stakeholders/{stakeholder_id}:
+    parameters:
+      - name: stakeholder_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [stakeholders]
+      summary: Fetch a single stakeholder (owner-only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Stakeholder
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Stakeholder'}
+        '404': {description: Not found (or owned by another user)}
+    patch:
+      tags: [stakeholders]
+      summary: Partial update of a stakeholder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StakeholderUpdate'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Stakeholder'}
+        '404': {description: Not found}
+    delete:
+      tags: [stakeholders]
+      summary: Soft-delete a stakeholder
+      description: |
+        Sets ``deleted_at`` on the row. A second delete on an
+        already-deleted stakeholder returns 404 (same posture as
+        projects).
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found}
+
+  /api/v1/stakeholders/{stakeholder_id}/interactions:
+    parameters:
+      - name: stakeholder_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [stakeholders]
+      summary: List a stakeholder's interactions (newest first)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Interactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StakeholderInteraction'}
+        '404': {description: Stakeholder not found}
+    post:
+      tags: [stakeholders]
+      summary: Log an interaction with a stakeholder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [occurred_at, channel, summary_md]
+              properties:
+                occurred_at: {type: string, format: date-time}
+                channel:
+                  type: string
+                  enum: [meeting, call, email, message, board_meeting, social, other]
+                summary_md: {type: string}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StakeholderInteraction'}
+        '404': {description: Stakeholder not found}
+
+  /api/v1/stakeholders/{stakeholder_id}/commitments:
+    parameters:
+      - name: stakeholder_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [stakeholders]
+      summary: List a stakeholder's commitments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: {type: string, enum: [open, done, dropped]}
+      responses:
+        '200':
+          description: Commitments (due-soonest first, undated last)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StakeholderCommitment'}
+        '404': {description: Stakeholder not found}
+    post:
+      tags: [stakeholders]
+      summary: Record a commitment for a stakeholder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [direction, description]
+              properties:
+                direction: {type: string, enum: [we_owe, they_owe]}
+                description: {type: string}
+                due_date: {type: string, format: date, nullable: true}
+                status: {type: string, enum: [open, done, dropped], default: open}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StakeholderCommitment'}
+        '404': {description: Stakeholder not found}
+
+  /api/v1/stakeholders/{stakeholder_id}/positions:
+    parameters:
+      - name: stakeholder_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [stakeholders]
+      summary: List a stakeholder's stance history
+      description: |
+        Full per-topic history by default (newest ``as_of`` first inside
+        each topic). ``latest=true`` collapses to one row per topic —
+        the latest ``as_of`` wins (ties broken by ``created_at``).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: latest
+          in: query
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StakeholderPosition'}
+        '404': {description: Stakeholder not found}
+    post:
+      tags: [stakeholders]
+      summary: Record a stance on a topic (append-only history)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic, stance, as_of]
+              properties:
+                topic: {type: string}
+                stance:
+                  type: string
+                  enum: [champion, supportive, neutral, skeptical, opposed, unknown]
+                note_md: {type: string, nullable: true}
+                as_of: {type: string, format: date}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StakeholderPosition'}
+        '404': {description: Stakeholder not found}
+
+  /api/v1/stakeholder-commitments:
+    get:
+      tags: [stakeholders]
+      summary: Commitments rollup across all the caller's stakeholders
+      description: |
+        "What do I owe the board this week" — every commitment across
+        the caller's active stakeholders, optionally filtered by
+        ``status`` and/or ``direction``. Each row carries the
+        stakeholder's ``full_name`` and ``stakeholder_type``.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: {type: string, enum: [open, done, dropped]}
+        - name: direction
+          in: query
+          schema: {type: string, enum: [we_owe, they_owe]}
+      responses:
+        '200':
+          description: Rollup rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StakeholderCommitmentRollup'}
+
+  /api/v1/stakeholder-commitments/{commitment_id}:
+    parameters:
+      - name: commitment_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    patch:
+      tags: [stakeholders]
+      summary: Update a commitment (flat surface)
+      description: |
+        Resolved through the caller's stakeholder scope — a commitment
+        on another user's (or a soft-deleted) stakeholder returns 404.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                direction: {type: string, enum: [we_owe, they_owe]}
+                description: {type: string}
+                due_date: {type: string, format: date, nullable: true}
+                status: {type: string, enum: [open, done, dropped]}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StakeholderCommitment'}
+        '404': {description: Commitment not found}
+
+  # ----------- MANAGEMENT KPIs (Management tab) -----------
+  /api/v1/management/team-members:
+    get:
+      tags: [management-kpis]
+      summary: List the caller's team roster
+      description: |
+        Active (non-deleted) team members owned by the caller, newest
+        first, each with ``kpi_count`` (active KPIs assigned).
+        Cross-user rows never appear.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Team members (with computed kpi_count)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MgmtTeamMember'}
+    post:
+      tags: [management-kpis]
+      summary: Add a team member to the caller's roster
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtTeamMemberCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtTeamMember'}
+
+  /api/v1/management/team-members/{team_member_id}:
+    parameters:
+      - name: team_member_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-kpis]
+      summary: Fetch a single team member (owner-only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Team member
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtTeamMember'}
+        '404': {description: Team member not found}
+    patch:
+      tags: [management-kpis]
+      summary: Partial update of a team member (owner-only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtTeamMemberUpdate'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtTeamMember'}
+        '404': {description: Team member not found}
+    delete:
+      tags: [management-kpis]
+      summary: Soft-delete a team member (owner-only)
+      description: |
+        Sets ``deleted_at`` on the member AND on their active
+        individual-scope KPIs in the same transaction, so those KPIs
+        disappear from every read surface. A second delete returns 404.
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Soft-deleted}
+        '404': {description: Team member not found}
+
+  /api/v1/management/kpis:
+    get:
+      tags: [management-kpis]
+      summary: List the caller's KPIs
+      description: |
+        Active (non-deleted) KPIs owned by the caller, newest first,
+        each with computed latest/previous values, datapoint count and
+        attainment. ``department`` / ``scope`` / ``team_member_id``
+        filter the list.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: department
+          in: query
+          schema: {type: string, enum: [legal, compliance]}
+        - name: scope
+          in: query
+          schema: {type: string, enum: [department, individual]}
+        - name: team_member_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: KPIs (with computed fields)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MgmtKpi'}
+    post:
+      tags: [management-kpis]
+      summary: Create a KPI
+      description: |
+        ``scope='individual'`` requires ``team_member_id`` (one of the
+        caller's own active team members — cross-user/unknown ids are
+        404); ``scope='department'`` forbids it (422 on violation).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtKpiCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtKpi'}
+        '404': {description: Team member not found}
+        '422': {description: scope/team_member_id pairing violated}
+
+  /api/v1/management/kpis/{kpi_id}:
+    parameters:
+      - name: kpi_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-kpis]
+      summary: Fetch a single KPI (owner-only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: KPI (with computed fields)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtKpi'}
+        '404': {description: KPI not found}
+    patch:
+      tags: [management-kpis]
+      summary: Partial update of a KPI (owner-only)
+      description: |
+        Scope/team-member consistency is enforced on the resulting row
+        state (422 on violation); a new ``team_member_id`` must resolve
+        to one of the caller's own active team members (404 otherwise).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtKpiUpdate'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtKpi'}
+        '404': {description: KPI or team member not found}
+        '422': {description: scope/team_member_id pairing violated}
+    delete:
+      tags: [management-kpis]
+      summary: Soft-delete a KPI (owner-only)
+      description: |
+        Sets ``deleted_at`` on the row; datapoints are retained (they
+        hard-CASCADE only on a future hard delete). A second delete
+        returns 404.
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Soft-deleted}
+        '404': {description: KPI not found}
+
+  /api/v1/management/kpis/{kpi_id}/datapoints:
+    parameters:
+      - name: kpi_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-kpis]
+      summary: List a KPI's datapoints (period ascending)
+      description: |
+        ``from`` / ``to`` bound the period range inclusively (period
+        strings order lexicographically = chronologically within one
+        cadence). Bounds must match the KPI's period format (422).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema: {type: string}
+        - name: to
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Datapoints, period ascending
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MgmtKpiDatapoint'}
+        '404': {description: KPI not found}
+        '422': {description: from/to format does not match the KPI's cadence}
+    post:
+      tags: [management-kpis]
+      summary: Record a KPI value for one period (upsert-by-period)
+      description: |
+        Creates the datapoint (201). ``period`` must be ``YYYY-MM`` for
+        monthly KPIs and ``YYYY-Qn`` for quarterly ones (422 on
+        mismatch). If the period already has a value, returns 409
+        unless ``?overwrite=true`` — then the existing row is updated
+        in place (200) and audited as ``mgmt_kpi.datapoint_update``.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: overwrite
+          in: query
+          schema: {type: boolean, default: false}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtKpiDatapointCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtKpiDatapoint'}
+        '200':
+          description: Existing period overwritten (overwrite=true)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtKpiDatapoint'}
+        '404': {description: KPI not found}
+        '409': {description: Period already recorded (and overwrite not set)}
+        '422': {description: period format does not match the KPI's cadence}
+
+  /api/v1/management/kpis/{kpi_id}/series:
+    parameters:
+      - name: kpi_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-kpis]
+      summary: Chart feed for one KPI (definition + ordered datapoints)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: KPI read shape plus datapoints ordered by period asc
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kpi, datapoints]
+                properties:
+                  kpi: {$ref: '#/components/schemas/MgmtKpi'}
+                  datapoints:
+                    type: array
+                    items:
+                      type: object
+                      required: [period, value]
+                      properties:
+                        period: {type: string}
+                        value: {type: string, description: Decimal serialized as string}
+                        note_md: {type: string, nullable: true}
+        '404': {description: KPI not found}
+
+  /api/v1/management/dashboard:
+    get:
+      tags: [management-kpis]
+      summary: One-call dashboard feed (departments + team)
+      description: |
+        ``departments`` groups the caller's scope='department' KPIs by
+        department; ``team`` lists every active team member with their
+        individual-scope KPIs. Two batched queries total — computed
+        fields ride correlated subqueries, never per-row round-trips.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard feed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [departments, team]
+                properties:
+                  departments:
+                    type: object
+                    required: [legal, compliance]
+                    properties:
+                      legal:
+                        type: array
+                        items: {$ref: '#/components/schemas/MgmtKpi'}
+                      compliance:
+                        type: array
+                        items: {$ref: '#/components/schemas/MgmtKpi'}
+                  team:
+                    type: array
+                    items:
+                      type: object
+                      required: [member, kpis]
+                      properties:
+                        member: {$ref: '#/components/schemas/MgmtTeamMember'}
+                        kpis:
+                          type: array
+                          items: {$ref: '#/components/schemas/MgmtKpi'}
+
+  # ----------- MANAGEMENT DOCUMENTS (Management tab) -----------
+  /api/v1/management/documents:
+    get:
+      tags: [management-documents]
+      summary: List the caller's documents (metadata only)
+      description: |
+        Active (non-deleted) documents owned by the caller, newest
+        ``doc_date`` first (NULL dates last, then ``created_at`` desc).
+        The list shape omits ``content_md`` and carries the computed
+        ``content_chars`` instead. ``doc_type`` filters exactly; ``q``
+        is a case-insensitive substring match over title, author, and
+        related_tags (deliberately NOT the body, to keep the scan
+        cheap); ``date_from`` / ``date_to`` bound ``doc_date``
+        inclusively. Cross-user rows never appear.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: doc_type
+          in: query
+          schema: {type: string}
+        - name: q
+          in: query
+          schema: {type: string}
+        - name: date_from
+          in: query
+          schema: {type: string, format: date}
+        - name: date_to
+          in: query
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Documents (metadata + content_chars, no content_md)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MgmtDocumentListItem'}
+    post:
+      tags: [management-documents]
+      summary: Create a Management-space document
+      description: |
+        v1 documents are inline markdown work product (``content_md``
+        TEXT stored in Postgres) — board packs, minutes, memos. Binary/
+        PDF upload via the ingestion pipeline is roadmap.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtDocumentCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtDocument'}
+
+  /api/v1/management/documents/{document_id}:
+    parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-documents]
+      summary: Fetch a single document incl. content (owner-only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Document (full, incl. content_md)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtDocument'}
+        '404': {description: Document not found}
+    patch:
+      tags: [management-documents]
+      summary: Partial update of a document (owner-only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtDocumentUpdate'}
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtDocument'}
+        '404': {description: Document not found}
+    delete:
+      tags: [management-documents]
+      summary: Soft-delete a document (owner-only)
+      description: |
+        Sets ``deleted_at`` on the row; the content is retained in the
+        DB (tombstoned, not erased). A second delete returns 404.
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Soft-deleted}
+        '404': {description: Document not found}
+
+  /api/v1/management/kpi-wizard/questions:
+    get:
+      tags: [management-ai]
+      summary: The static KPI-wizard interview script
+      description: |
+        The A2 KPI-interview question script, served from the server as
+        the single source of truth (data-free, shareable work product).
+        The wizard UI renders these in order and submits the collected
+        answers on ``POST /management/ai-jobs`` with
+        ``job_type='kpi_draft'``. Static content — auth-gated but
+        identical for every caller.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The interview script, in render order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questions]
+                properties:
+                  questions:
+                    type: array
+                    items: {$ref: '#/components/schemas/MgmtKpiWizardQuestion'}
+
+  /api/v1/management/ai-jobs:
+    get:
+      tags: [management-ai]
+      summary: List the caller's Management-AI jobs (newest first)
+      description: |
+        Feeds the "past briefs" panels. ``job_type`` /
+        ``stakeholder_id`` / ``team_member_id`` filter the list. The
+        list shape excludes ``params`` (wizard answers may be large);
+        fetch a single job for the full shape. Cross-user rows never
+        appear.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_type
+          in: query
+          schema: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft]}
+        - name: stakeholder_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: team_member_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Jobs, newest first (no params field)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/MgmtAiJobListItem'}
+    post:
+      tags: [management-ai]
+      summary: Create a Management-AI draft job and schedule the background run
+      description: |
+        Creates the job row at ``status='pending'`` and returns 202
+        immediately; a background run (same machinery as the playbook
+        executor) promotes it to ``running`` then ``done`` / ``error``.
+        Poll ``GET /management/ai-jobs/{job_id}``. Subject pairing:
+        ``pre_meeting_brief`` requires ``stakeholder_id``,
+        ``review_prep`` requires ``team_member_id``, ``kpi_draft``
+        requires non-empty ``answers`` (422 on violation; unknown /
+        cross-user subjects are 404). Draft-then-confirm: results are
+        drafts — the user creates confirmed rows via the existing CRUD;
+        nothing here writes to dossiers/KPIs directly.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtAiJobCreate'}
+      responses:
+        '202':
+          description: Job accepted (status='pending'; poll for the result)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtAiJob'}
+        '404': {description: Subject stakeholder / team member not found}
+        '422': {description: job_type ↔ subject/answers pairing violated}
+
+  /api/v1/management/ai-jobs/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [management-ai]
+      summary: Poll a single Management-AI job (owner-only)
+      description: |
+        Returns the row in any state — poll until ``status`` reaches
+        ``done`` (``result_md`` / ``result_json`` populated) or
+        ``error`` (``error`` populated). Includes ``params``.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Job (full shape incl. params)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtAiJob'}
+        '404': {description: AI job not found}
+
+  /api/v1/management/urgent-matters:
+    get:
+      tags: [management-urgent]
+      summary: The "Urgent Matters" feed — red (act today) and yellow (the next 5 days)
+      description: |
+        Computed and read-only; no tables of its own. Scans three
+        sources — open commitments (both directions), stakeholder
+        cadence breaches, and KPIs at or below 80% attainment (below
+        the green band) — and buckets findings per the triage rule
+        set. RED: an overdue open commitment; a regulator/auditor,
+        board-chair, or CEO commitment due within 7 days; a
+        C-suite-peer commitment due within 3 days. YELLOW: any other
+        commitment due within 5 days (the band is titled "needs your
+        attention in the next 5 days", and rolls off today's date); a
+        regulator/auditor commitment
+        8-14 days out (visibility window, not yet red); a cadence
+        breach (days-since-last-interaction > cadence_target_days); a
+        department- or individual-scope KPI at or below 80% attainment.
+        Ranking: reds by days_until_due ascending (most-overdue first),
+        then yellows — commitments by due date, cadence breaches by
+        days-over, KPIs by attainment ascending. Each band is capped
+        independently: up to 10 reds and up to 5 yellows, so a full red
+        band never starves the yellow one.
+        Owner-scoped. Documents scanning is out of scope (later MCP
+        work).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The red/yellow triage feed (combined cap of 10 items)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtUrgentMatters'}
+
 # ============================================================
 # COMPONENTS
 # ============================================================
@@ -8127,6 +9027,495 @@ components:
         tags: {type: array, items: {type: string}}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+
+    # Management tab — Stakeholders module.
+    Stakeholder:
+      type: object
+      required: [id, owner_id, full_name, stakeholder_type, created_at, updated_at,
+                 open_commitments_count]
+      properties:
+        id: {type: string, format: uuid}
+        owner_id: {type: string, format: uuid}
+        full_name: {type: string, maxLength: 200}
+        organization: {type: string, nullable: true}
+        role_title: {type: string, nullable: true}
+        stakeholder_type:
+          type: string
+          enum: [board_chair, director, ceo, c_suite_peer, investor_sponsor,
+                 lender, customer, regulator, auditor, outside_counsel, media, other]
+        committee_seats:
+          type: string
+          nullable: true
+          description: Free-text detail on a director (e.g. "Audit (chair); Comp") — committee roles are not their own type.
+        overall_health:
+          type: string
+          nullable: true
+          enum: [green, yellow, red]
+          description: Manually-set 3-level traffic light (migration 0070); never derived by the system.
+        cadence_target_days:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: User-configurable contact cadence; drives the needs_attention filter.
+        interests_md: {type: string, nullable: true}
+        communication_preferences_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        deleted_at: {type: string, format: date-time, nullable: true}
+        last_interaction_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Computed — newest interactions.occurred_at; null when none logged.
+        days_since_last_interaction:
+          type: integer
+          nullable: true
+          description: Computed from last_interaction_at; null when none logged.
+        open_commitments_count:
+          type: integer
+          description: Computed — count of status='open' commitment rows.
+
+    StakeholderCreate:
+      type: object
+      required: [full_name, stakeholder_type]
+      properties:
+        full_name: {type: string, minLength: 1, maxLength: 200}
+        organization: {type: string, nullable: true}
+        role_title: {type: string, nullable: true}
+        stakeholder_type:
+          type: string
+          enum: [board_chair, director, ceo, c_suite_peer, investor_sponsor,
+                 lender, customer, regulator, auditor, outside_counsel, media, other]
+        committee_seats: {type: string, nullable: true}
+        overall_health:
+          type: string
+          nullable: true
+          enum: [green, yellow, red]
+        cadence_target_days: {type: integer, nullable: true, minimum: 1}
+        interests_md: {type: string, nullable: true}
+        communication_preferences_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    StakeholderUpdate:
+      type: object
+      description: PATCH body — every field optional; explicit null clears nullable fields.
+      properties:
+        full_name: {type: string, minLength: 1, maxLength: 200}
+        organization: {type: string, nullable: true}
+        role_title: {type: string, nullable: true}
+        stakeholder_type:
+          type: string
+          enum: [board_chair, director, ceo, c_suite_peer, investor_sponsor,
+                 lender, customer, regulator, auditor, outside_counsel, media, other]
+        committee_seats: {type: string, nullable: true}
+        overall_health:
+          type: string
+          nullable: true
+          enum: [green, yellow, red]
+        cadence_target_days: {type: integer, nullable: true, minimum: 1}
+        interests_md: {type: string, nullable: true}
+        communication_preferences_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    StakeholderInteraction:
+      type: object
+      required: [id, stakeholder_id, occurred_at, channel, summary_md, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        stakeholder_id: {type: string, format: uuid}
+        occurred_at: {type: string, format: date-time}
+        channel:
+          type: string
+          enum: [meeting, call, email, message, board_meeting, social, other]
+        summary_md: {type: string}
+        created_at: {type: string, format: date-time}
+
+    StakeholderCommitment:
+      type: object
+      required: [id, stakeholder_id, direction, description, status, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        stakeholder_id: {type: string, format: uuid}
+        direction: {type: string, enum: [we_owe, they_owe]}
+        description: {type: string}
+        due_date: {type: string, format: date, nullable: true}
+        status: {type: string, enum: [open, done, dropped]}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    StakeholderCommitmentRollup:
+      allOf:
+        - $ref: '#/components/schemas/StakeholderCommitment'
+        - type: object
+          required: [full_name, stakeholder_type]
+          properties:
+            full_name: {type: string}
+            stakeholder_type:
+              type: string
+              enum: [board_chair, director, ceo, c_suite_peer, investor_sponsor,
+                     lender, customer, regulator, auditor, outside_counsel, media, other]
+
+    StakeholderPosition:
+      type: object
+      required: [id, stakeholder_id, topic, stance, as_of, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        stakeholder_id: {type: string, format: uuid}
+        topic: {type: string}
+        stance:
+          type: string
+          enum: [champion, supportive, neutral, skeptical, opposed, unknown]
+        note_md: {type: string, nullable: true}
+        as_of: {type: string, format: date}
+        created_at: {type: string, format: date-time}
+
+    # Management tab — KPIs module. All Numeric values (baseline, target,
+    # value, and every computed value) serialize as JSON strings.
+    MgmtTeamMember:
+      type: object
+      required: [id, owner_id, name, role_title, department, created_at, updated_at,
+                 kpi_count]
+      properties:
+        id: {type: string, format: uuid}
+        owner_id: {type: string, format: uuid}
+        name: {type: string, maxLength: 200}
+        role_title: {type: string}
+        department: {type: string, enum: [legal, compliance]}
+        seniority: {type: string, nullable: true}
+        strengths_md: {type: string, nullable: true}
+        development_areas_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        deleted_at: {type: string, format: date-time, nullable: true}
+        kpi_count:
+          type: integer
+          description: Computed — count of active (non-deleted) KPIs assigned to this member.
+
+    MgmtTeamMemberCreate:
+      type: object
+      required: [name, role_title, department]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        role_title: {type: string, minLength: 1}
+        department: {type: string, enum: [legal, compliance]}
+        seniority: {type: string, nullable: true}
+        strengths_md: {type: string, nullable: true}
+        development_areas_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    MgmtTeamMemberUpdate:
+      type: object
+      description: PATCH body — every field optional; explicit null clears nullable fields.
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        role_title: {type: string, minLength: 1}
+        department: {type: string, enum: [legal, compliance]}
+        seniority: {type: string, nullable: true}
+        strengths_md: {type: string, nullable: true}
+        development_areas_md: {type: string, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    MgmtKpi:
+      type: object
+      required: [id, owner_id, name, department, scope, unit, cadence, direction,
+                 created_at, updated_at, datapoint_count]
+      properties:
+        id: {type: string, format: uuid}
+        owner_id: {type: string, format: uuid}
+        name: {type: string, maxLength: 200}
+        department: {type: string, enum: [legal, compliance]}
+        scope: {type: string, enum: [department, individual]}
+        team_member_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Present iff scope='individual' (chk_mgmt_kpis_scope_team_member).
+        unit: {type: string, description: "Free-text unit label (e.g. 'days', '%', 'USD', 'count')."}
+        cadence: {type: string, enum: [monthly, quarterly]}
+        direction: {type: string, enum: [higher_is_better, lower_is_better]}
+        baseline: {type: string, nullable: true, description: Decimal serialized as string.}
+        target: {type: string, nullable: true, description: Decimal serialized as string.}
+        rationale_md:
+          type: string
+          nullable: true
+          description: Why this number proves legal's value.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        deleted_at: {type: string, format: date-time, nullable: true}
+        latest_period:
+          type: string
+          nullable: true
+          description: Computed — newest datapoint period; null when none recorded.
+        latest_value:
+          type: string
+          nullable: true
+          description: Computed — newest datapoint value (Decimal as string).
+        previous_value:
+          type: string
+          nullable: true
+          description: Computed — second-newest datapoint value (Decimal as string).
+        datapoint_count:
+          type: integer
+          description: Computed — total datapoints recorded.
+        attainment_pct:
+          type: string
+          nullable: true
+          description: |
+            Computed — latest_value/target*100 (1 dp) for
+            higher_is_better; target/latest_value*100 for
+            lower_is_better, so >100% always means beating target.
+            Null when target or latest value is missing or the divisor
+            is zero.
+
+    MgmtKpiCreate:
+      type: object
+      required: [name, department, scope, unit, cadence, direction]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        department: {type: string, enum: [legal, compliance]}
+        scope: {type: string, enum: [department, individual]}
+        team_member_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Required iff scope='individual' (422 on violation).
+        unit: {type: string, minLength: 1}
+        cadence: {type: string, enum: [monthly, quarterly]}
+        direction: {type: string, enum: [higher_is_better, lower_is_better]}
+        baseline: {type: string, nullable: true, description: Decimal — number or string accepted.}
+        target: {type: string, nullable: true, description: Decimal — number or string accepted.}
+        rationale_md: {type: string, nullable: true}
+
+    MgmtKpiUpdate:
+      type: object
+      description: |
+        PATCH body — every field optional; scope/team-member consistency
+        is re-checked on the resulting row state (422 on violation).
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        department: {type: string, enum: [legal, compliance]}
+        scope: {type: string, enum: [department, individual]}
+        team_member_id: {type: string, format: uuid, nullable: true}
+        unit: {type: string, minLength: 1}
+        cadence: {type: string, enum: [monthly, quarterly]}
+        direction: {type: string, enum: [higher_is_better, lower_is_better]}
+        baseline: {type: string, nullable: true}
+        target: {type: string, nullable: true}
+        rationale_md: {type: string, nullable: true}
+
+    MgmtKpiDatapoint:
+      type: object
+      required: [id, kpi_id, period, value, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        kpi_id: {type: string, format: uuid}
+        period:
+          type: string
+          description: "'YYYY-MM' for monthly KPIs, 'YYYY-Qn' for quarterly."
+        value: {type: string, description: Decimal serialized as string.}
+        note_md: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    MgmtKpiDatapointCreate:
+      type: object
+      required: [period, value]
+      properties:
+        period:
+          type: string
+          minLength: 1
+          description: Must match the parent KPI's cadence format (422 otherwise).
+        value: {type: string, description: Decimal — number or string accepted.}
+        note_md: {type: string, nullable: true}
+
+    MgmtDocumentListItem:
+      type: object
+      description: |
+        List shape — all metadata, NO content_md. content_chars is the
+        computed character count of the omitted body.
+      required: [id, owner_id, title, doc_type, created_at, updated_at, content_chars]
+      properties:
+        id: {type: string, format: uuid}
+        owner_id: {type: string, format: uuid}
+        title: {type: string, maxLength: 300}
+        doc_type:
+          type: string
+          maxLength: 60
+          description: Free text (open vocabulary), NOT an enum.
+        doc_date: {type: string, format: date, nullable: true}
+        author: {type: string, maxLength: 200, nullable: true}
+        related_tags:
+          type: string
+          nullable: true
+          description: Comma-separated storyline/topic tags, free text.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        deleted_at: {type: string, format: date-time, nullable: true}
+        content_chars:
+          type: integer
+          description: Computed — character count of content_md.
+
+    MgmtDocument:
+      allOf:
+        - $ref: '#/components/schemas/MgmtDocumentListItem'
+        - type: object
+          required: [content_md]
+          properties:
+            content_md:
+              type: string
+              description: Inline markdown body (v1 content model).
+
+    MgmtDocumentCreate:
+      type: object
+      required: [title, doc_type, content_md]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 300}
+        doc_type: {type: string, minLength: 1, maxLength: 60}
+        content_md: {type: string, minLength: 1}
+        doc_date: {type: string, format: date, nullable: true}
+        author: {type: string, maxLength: 200, nullable: true}
+        related_tags: {type: string, nullable: true}
+
+    MgmtDocumentUpdate:
+      type: object
+      description: PATCH body — every field optional; explicit null clears nullable fields.
+      properties:
+        title: {type: string, minLength: 1, maxLength: 300}
+        doc_type: {type: string, minLength: 1, maxLength: 60}
+        content_md: {type: string, minLength: 1}
+        doc_date: {type: string, format: date, nullable: true}
+        author: {type: string, maxLength: 200, nullable: true}
+        related_tags: {type: string, nullable: true}
+
+    MgmtKpiWizardQuestion:
+      type: object
+      description: One static A2 KPI-interview question — data-free, stable ids.
+      required: [id, section, prompt, hint, optional]
+      properties:
+        id: {type: string, description: Stable question id; answers key on it.}
+        section: {type: string, description: "Interview section: A objective, B candidate metrics, C vanity check, D baselines/targets."}
+        prompt: {type: string}
+        hint: {type: string}
+        optional: {type: boolean}
+
+    MgmtAiJobCreate:
+      type: object
+      description: |
+        Subject pairing by job_type (422 on violation):
+        pre_meeting_brief requires stakeholder_id; review_prep requires
+        team_member_id; kpi_draft requires non-empty answers and no
+        subject id. Unknown / cross-user subjects are 404.
+      required: [job_type]
+      additionalProperties: false
+      properties:
+        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft]}
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        team_member_id: {type: string, format: uuid, nullable: true}
+        answers:
+          type: array
+          nullable: true
+          description: Wizard answers keyed on the static question ids (kpi_draft only).
+          items:
+            type: object
+            required: [question_id, answer]
+            additionalProperties: false
+            properties:
+              question_id: {type: string, minLength: 1}
+              answer: {type: string, minLength: 1}
+
+    MgmtAiJobListItem:
+      type: object
+      description: |
+        List shape — everything except params (wizard answers may be
+        large). result_md carries the markdown brief for
+        pre_meeting_brief / review_prep jobs; result_json carries the
+        validated KPI-draft catalog ({kpis: [...], not_measured: [...]})
+        for kpi_draft jobs. Both null until status='done'.
+      required: [id, job_type, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft]}
+        status: {type: string, enum: [pending, running, done, error]}
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        team_member_id: {type: string, format: uuid, nullable: true}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time, nullable: true}
+        result_md:
+          type: string
+          nullable: true
+          description: The draft brief (markdown, with bracketed source markers).
+        result_json:
+          type: object
+          nullable: true
+          description: Validated KPI-draft catalog (kpi_draft jobs only).
+        error: {type: string, nullable: true}
+
+    MgmtAiJob:
+      allOf:
+        - $ref: '#/components/schemas/MgmtAiJobListItem'
+        - type: object
+          properties:
+            params:
+              type: object
+              nullable: true
+              description: Request-side inputs (wizard answers) — detail read only.
+
+    # Management tab — Urgent Matters (computed triage feed; no tables).
+    MgmtUrgentItem:
+      type: object
+      required: [kind, title, why, next_step, link]
+      properties:
+        kind:
+          type: string
+          enum: [commitment, cadence, kpi]
+          description: Which source produced the item.
+        title:
+          type: string
+          description: |
+            Display line. Commitments prefix the trimmed description
+            with the direction ("Deliver: ..." for we_owe, "Chase: ..."
+            for they_owe); individual-scope KPI items are titled with
+            the team member's name.
+        why:
+          type: string
+          description: One factual line ("Due 2026-07-31 — 2 days from now — owed to Margo Delclos (Board Chair)"; "No touch in 40 days vs a 21-day target"; "Attainment 43.0% of target").
+        next_step:
+          type: string
+          description: One imperative line derived from kind ("Deliver or renegotiate the date", "Schedule a touchpoint", "Review the trend and the plan with the owner").
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Commitment items only; null for cadence/KPI items.
+        days_until_due:
+          type: integer
+          nullable: true
+          description: Negative = overdue. Commitment items only.
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        stakeholder_name: {type: string, nullable: true}
+        kpi_id: {type: string, format: uuid, nullable: true}
+        link:
+          type: string
+          description: |
+            Frontend route — commitments/cadence:
+            /lq-ai/management/stakeholders/{stakeholder_id}; KPIs:
+            /lq-ai/management/kpis/{kpi_id}.
+
+    MgmtUrgentMatters:
+      type: object
+      required: [generated_at, red, yellow]
+      properties:
+        generated_at: {type: string, format: date-time}
+        red:
+          type: array
+          items: {$ref: '#/components/schemas/MgmtUrgentItem'}
+          description: Act today. Sorted most-overdue first, then soonest due.
+        yellow:
+          type: array
+          items: {$ref: '#/components/schemas/MgmtUrgentItem'}
+          description: Act this week. Commitments (by due date), then cadence breaches (largest gap first), then KPIs (worst attainment first). Combined red+yellow cap is 10; reds survive the cap first.
 
     # D8 + D8.1b — DB-backed user/team skills (ADR 0012).
     UserSkill:

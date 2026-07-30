@@ -3254,6 +3254,1088 @@ components:
       - code
       title: MfaVerifyRequest
       type: object
+    MgmtAiJobCreate:
+      additionalProperties: false
+      description: "``POST /api/v1/management/ai-jobs`` body.\n\nSubject requirements\
+        \ by ``job_type`` (enforced in the handler):\n\n* ``pre_meeting_brief`` —\
+        \ ``stakeholder_id`` required, no\n  ``team_member_id``.\n* ``review_prep``\
+        \ — ``team_member_id`` required, no\n  ``stakeholder_id``.\n* ``kpi_draft``\
+        \ — no subject; ``answers`` required and non-empty."
+      properties:
+        answers:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MgmtKpiWizardAnswer'
+            type: array
+          - type: 'null'
+          title: Answers
+        job_type:
+          enum:
+          - pre_meeting_brief
+          - review_prep
+          - kpi_draft
+          title: Job Type
+          type: string
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+      required:
+      - job_type
+      title: MgmtAiJobCreate
+      type: object
+    MgmtAiJobListRead:
+      description: List shape — everything except ``params`` (may be large).
+      properties:
+        completed_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Completed At
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        id:
+          format: uuid
+          title: Id
+          type: string
+        job_type:
+          enum:
+          - pre_meeting_brief
+          - review_prep
+          - kpi_draft
+          title: Job Type
+          type: string
+        result_json:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Result Json
+        result_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result Md
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        status:
+          enum:
+          - pending
+          - running
+          - done
+          - error
+          title: Status
+          type: string
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+      required:
+      - id
+      - job_type
+      - status
+      - stakeholder_id
+      - team_member_id
+      - created_at
+      - completed_at
+      - result_md
+      - result_json
+      - error
+      title: MgmtAiJobListRead
+      type: object
+    MgmtAiJobRead:
+      description: Detail shape — the list shape plus the request-side ``params``.
+      properties:
+        completed_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Completed At
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        id:
+          format: uuid
+          title: Id
+          type: string
+        job_type:
+          enum:
+          - pre_meeting_brief
+          - review_prep
+          - kpi_draft
+          title: Job Type
+          type: string
+        params:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Params
+        result_json:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Result Json
+        result_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result Md
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        status:
+          enum:
+          - pending
+          - running
+          - done
+          - error
+          title: Status
+          type: string
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+      required:
+      - id
+      - job_type
+      - status
+      - stakeholder_id
+      - team_member_id
+      - created_at
+      - completed_at
+      - result_md
+      - result_json
+      - error
+      - params
+      title: MgmtAiJobRead
+      type: object
+    MgmtDashboardDepartments:
+      description: Department-scope KPIs grouped by department.
+      properties:
+        compliance:
+          items:
+            $ref: '#/components/schemas/MgmtKpiRead'
+          title: Compliance
+          type: array
+        legal:
+          items:
+            $ref: '#/components/schemas/MgmtKpiRead'
+          title: Legal
+          type: array
+      required:
+      - legal
+      - compliance
+      title: MgmtDashboardDepartments
+      type: object
+    MgmtDashboardRead:
+      description: '``GET /api/v1/management/dashboard`` response — one call for the
+        UI.
+
+
+        ``departments`` carries scope=''department'' KPIs only; ``team``
+
+        carries every active team member with their individual-scope KPIs.'
+      properties:
+        departments:
+          $ref: '#/components/schemas/MgmtDashboardDepartments'
+        team:
+          items:
+            $ref: '#/components/schemas/MgmtDashboardTeamEntry'
+          title: Team
+          type: array
+      required:
+      - departments
+      - team
+      title: MgmtDashboardRead
+      type: object
+    MgmtDashboardTeamEntry:
+      description: One team member with their individual-scope KPIs.
+      properties:
+        kpis:
+          items:
+            $ref: '#/components/schemas/MgmtKpiRead'
+          title: Kpis
+          type: array
+        member:
+          $ref: '#/components/schemas/MgmtTeamMemberRead'
+      required:
+      - member
+      - kpis
+      title: MgmtDashboardTeamEntry
+      type: object
+    MgmtDocumentCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/management/documents`` body.'
+      properties:
+        author:
+          anyOf:
+          - maxLength: 200
+            type: string
+          - type: 'null'
+          title: Author
+        content_md:
+          minLength: 1
+          title: Content Md
+          type: string
+        doc_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Doc Date
+        doc_type:
+          maxLength: 60
+          minLength: 1
+          title: Doc Type
+          type: string
+        related_tags:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Related Tags
+        title:
+          maxLength: 300
+          minLength: 1
+          title: Title
+          type: string
+      required:
+      - title
+      - doc_type
+      - content_md
+      title: MgmtDocumentCreate
+      type: object
+    MgmtDocumentListRead:
+      description: '``MgmtDocument`` list shape — all metadata, NO ``content_md``.
+
+
+        ``content_chars`` is the character count of the (omitted) body,
+
+        computed with ``char_length(content_md)`` in the same SELECT as the
+
+        rows — the list endpoint never transfers document bodies.'
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        content_chars:
+          default: 0
+          title: Content Chars
+          type: integer
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        deleted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Deleted At
+        doc_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Doc Date
+        doc_type:
+          title: Doc Type
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        related_tags:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Related Tags
+        title:
+          title: Title
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - title
+      - doc_type
+      - created_at
+      - updated_at
+      title: MgmtDocumentListRead
+      type: object
+    MgmtDocumentRead:
+      description: '``MgmtDocument`` detail shape — everything, including the body.'
+      properties:
+        author:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Author
+        content_chars:
+          default: 0
+          title: Content Chars
+          type: integer
+        content_md:
+          title: Content Md
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        deleted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Deleted At
+        doc_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Doc Date
+        doc_type:
+          title: Doc Type
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        related_tags:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Related Tags
+        title:
+          title: Title
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - title
+      - doc_type
+      - created_at
+      - updated_at
+      - content_md
+      title: MgmtDocumentRead
+      type: object
+    MgmtDocumentUpdate:
+      additionalProperties: false
+      description: '``PATCH /api/v1/management/documents/{id}`` body — all optional.
+
+
+        The handler applies ``model_dump(exclude_unset=True)`` so nullable
+
+        fields (``doc_date``, ``author``, ``related_tags``) can be
+
+        explicitly cleared with ``null``.'
+      properties:
+        author:
+          anyOf:
+          - maxLength: 200
+            type: string
+          - type: 'null'
+          title: Author
+        content_md:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Content Md
+        doc_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Doc Date
+        doc_type:
+          anyOf:
+          - maxLength: 60
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Doc Type
+        related_tags:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Related Tags
+        title:
+          anyOf:
+          - maxLength: 300
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Title
+      title: MgmtDocumentUpdate
+      type: object
+    MgmtKpiCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/management/kpis`` body.
+
+
+        ``scope=''individual''`` requires ``team_member_id`` (and vice versa) —
+
+        enforced here with a model validator (422 on violation), mirroring
+
+        the DB CHECK so the constraint never surfaces as a 500.'
+      properties:
+        baseline:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Baseline
+        cadence:
+          enum:
+          - monthly
+          - quarterly
+          title: Cadence
+          type: string
+        department:
+          enum:
+          - legal
+          - compliance
+          title: Department
+          type: string
+        direction:
+          enum:
+          - higher_is_better
+          - lower_is_better
+          title: Direction
+          type: string
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        rationale_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale Md
+        scope:
+          enum:
+          - department
+          - individual
+          title: Scope
+          type: string
+        target:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Target
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+        unit:
+          minLength: 1
+          title: Unit
+          type: string
+      required:
+      - name
+      - department
+      - scope
+      - unit
+      - cadence
+      - direction
+      title: MgmtKpiCreate
+      type: object
+    MgmtKpiDatapointCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/management/kpis/{id}/datapoints`` body.
+
+
+        ``period`` format (''YYYY-MM'' monthly / ''YYYY-Qn'' quarterly) is
+
+        validated by the handler against the parent KPI''s cadence — a
+
+        format/cadence mismatch is a 422. A duplicate period is a 409
+
+        unless ``?overwrite=true``.'
+      properties:
+        note_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note Md
+        period:
+          minLength: 1
+          title: Period
+          type: string
+        value:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Value
+      required:
+      - period
+      - value
+      title: MgmtKpiDatapointCreate
+      type: object
+    MgmtKpiDatapointRead:
+      description: '``MgmtKpiDatapoint`` wire shape (``value`` is a JSON string).'
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        kpi_id:
+          format: uuid
+          title: Kpi Id
+          type: string
+        note_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note Md
+        period:
+          title: Period
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+        value:
+          title: Value
+          type: string
+      required:
+      - id
+      - kpi_id
+      - period
+      - value
+      - created_at
+      - updated_at
+      title: MgmtKpiDatapointRead
+      type: object
+    MgmtKpiRead:
+      description: '``MgmtKpi`` wire shape — row columns plus computed fields.
+
+
+        ``baseline`` / ``target`` and every computed value are JSON strings
+
+        (Decimal-as-string per CLAUDE.md). ``latest_period`` /
+
+        ``latest_value`` / ``previous_value`` come from the newest two
+
+        datapoints by period; ``attainment_pct`` is
+
+        ``latest_value / target * 100`` (rounded to 1 dp) for
+
+        ``higher_is_better`` and ``target / latest_value * 100`` for
+
+        ``lower_is_better``, so >100% always means "beating target". Null
+
+        when there is no target, no datapoint, or the divisor is zero.'
+      properties:
+        attainment_pct:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Attainment Pct
+        baseline:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Baseline
+        cadence:
+          title: Cadence
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        datapoint_count:
+          default: 0
+          title: Datapoint Count
+          type: integer
+        deleted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Deleted At
+        department:
+          title: Department
+          type: string
+        direction:
+          title: Direction
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        latest_period:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Period
+        latest_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Value
+        name:
+          title: Name
+          type: string
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        previous_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Previous Value
+        rationale_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale Md
+        scope:
+          title: Scope
+          type: string
+        target:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+        unit:
+          title: Unit
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - name
+      - department
+      - scope
+      - unit
+      - cadence
+      - direction
+      - created_at
+      - updated_at
+      title: MgmtKpiRead
+      type: object
+    MgmtKpiSeriesPoint:
+      description: One chart point in the series feed (``value`` is a JSON string).
+      properties:
+        note_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note Md
+        period:
+          title: Period
+          type: string
+        value:
+          title: Value
+          type: string
+      required:
+      - period
+      - value
+      title: MgmtKpiSeriesPoint
+      type: object
+    MgmtKpiSeriesRead:
+      description: '``GET /api/v1/management/kpis/{id}/series`` response — the chart
+        feed.'
+      properties:
+        datapoints:
+          items:
+            $ref: '#/components/schemas/MgmtKpiSeriesPoint'
+          title: Datapoints
+          type: array
+        kpi:
+          $ref: '#/components/schemas/MgmtKpiRead'
+      required:
+      - kpi
+      - datapoints
+      title: MgmtKpiSeriesRead
+      type: object
+    MgmtKpiUpdate:
+      additionalProperties: false
+      description: '``PATCH /api/v1/management/kpis/{id}`` body — every field optional.
+
+
+        Scope/team-member consistency is re-checked by the handler on the
+
+        *resulting* row state (a PATCH may change either side of the pair),
+
+        returning 422 on violation.'
+      properties:
+        baseline:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Baseline
+        cadence:
+          anyOf:
+          - enum:
+            - monthly
+            - quarterly
+            type: string
+          - type: 'null'
+          title: Cadence
+        department:
+          anyOf:
+          - enum:
+            - legal
+            - compliance
+            type: string
+          - type: 'null'
+          title: Department
+        direction:
+          anyOf:
+          - enum:
+            - higher_is_better
+            - lower_is_better
+            type: string
+          - type: 'null'
+          title: Direction
+        name:
+          anyOf:
+          - maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Name
+        rationale_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale Md
+        scope:
+          anyOf:
+          - enum:
+            - department
+            - individual
+            type: string
+          - type: 'null'
+          title: Scope
+        target:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Target
+        team_member_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Team Member Id
+        unit:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Unit
+      title: MgmtKpiUpdate
+      type: object
+    MgmtKpiWizardAnswer:
+      additionalProperties: false
+      description: One collected wizard answer, keyed on the static question id.
+      properties:
+        answer:
+          minLength: 1
+          title: Answer
+          type: string
+        question_id:
+          minLength: 1
+          title: Question Id
+          type: string
+      required:
+      - question_id
+      - answer
+      title: MgmtKpiWizardAnswer
+      type: object
+    MgmtKpiWizardQuestion:
+      description: One static interview question — data-free, stable ids.
+      properties:
+        hint:
+          title: Hint
+          type: string
+        id:
+          title: Id
+          type: string
+        optional:
+          title: Optional
+          type: boolean
+        prompt:
+          title: Prompt
+          type: string
+        section:
+          title: Section
+          type: string
+      required:
+      - id
+      - section
+      - prompt
+      - hint
+      - optional
+      title: MgmtKpiWizardQuestion
+      type: object
+    MgmtKpiWizardQuestionsRead:
+      description: '``GET /api/v1/management/kpi-wizard/questions`` response.'
+      properties:
+        questions:
+          items:
+            $ref: '#/components/schemas/MgmtKpiWizardQuestion'
+          title: Questions
+          type: array
+      required:
+      - questions
+      title: MgmtKpiWizardQuestionsRead
+      type: object
+    MgmtTeamMemberCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/management/team-members`` body.'
+      properties:
+        department:
+          enum:
+          - legal
+          - compliance
+          title: Department
+          type: string
+        development_areas_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Development Areas Md
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        role_title:
+          minLength: 1
+          title: Role Title
+          type: string
+        seniority:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seniority
+        strengths_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strengths Md
+      required:
+      - name
+      - role_title
+      - department
+      title: MgmtTeamMemberCreate
+      type: object
+    MgmtTeamMemberRead:
+      description: '``MgmtTeamMember`` wire shape — row columns plus ``kpi_count``.
+
+
+        ``kpi_count`` is the number of active (non-deleted) KPIs assigned to
+
+        this member, derived with a correlated scalar subquery in the same
+
+        SELECT as the member row(s) — never N+1.'
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        deleted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Deleted At
+        department:
+          title: Department
+          type: string
+        development_areas_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Development Areas Md
+        id:
+          format: uuid
+          title: Id
+          type: string
+        kpi_count:
+          default: 0
+          title: Kpi Count
+          type: integer
+        name:
+          title: Name
+          type: string
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        role_title:
+          title: Role Title
+          type: string
+        seniority:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seniority
+        strengths_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strengths Md
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - name
+      - role_title
+      - department
+      - created_at
+      - updated_at
+      title: MgmtTeamMemberRead
+      type: object
+    MgmtTeamMemberUpdate:
+      additionalProperties: false
+      description: '``PATCH /api/v1/management/team-members/{id}`` body — all optional.
+
+
+        The handler applies ``model_dump(exclude_unset=True)`` so nullable
+
+        fields (``seniority``, the ``*_md`` bodies) can be explicitly
+
+        cleared with ``null``.'
+      properties:
+        department:
+          anyOf:
+          - enum:
+            - legal
+            - compliance
+            type: string
+          - type: 'null'
+          title: Department
+        development_areas_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Development Areas Md
+        name:
+          anyOf:
+          - maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Name
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        role_title:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Role Title
+        seniority:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Seniority
+        strengths_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strengths Md
+      title: MgmtTeamMemberUpdate
+      type: object
     NotificationChannel:
       description: 'Delivery channel for an autonomous notification.
 
@@ -4875,6 +5957,592 @@ components:
       - sources
       title: SourcesResponse
       type: object
+    StakeholderCommitmentCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/stakeholders/{id}/commitments`` body.
+
+
+        ``status`` defaults to ``open`` (matching the DB server default) but
+
+        is accepted on create so an already-resolved item can be logged for
+
+        the record.'
+      properties:
+        description:
+          minLength: 1
+          title: Description
+          type: string
+        direction:
+          enum:
+          - we_owe
+          - they_owe
+          title: Direction
+          type: string
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        status:
+          default: open
+          enum:
+          - open
+          - done
+          - dropped
+          title: Status
+          type: string
+      required:
+      - direction
+      - description
+      title: StakeholderCommitmentCreate
+      type: object
+    StakeholderCommitmentRead:
+      description: '``StakeholderCommitment`` wire shape.'
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        description:
+          title: Description
+          type: string
+        direction:
+          title: Direction
+          type: string
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        id:
+          format: uuid
+          title: Id
+          type: string
+        stakeholder_id:
+          format: uuid
+          title: Stakeholder Id
+          type: string
+        status:
+          title: Status
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - stakeholder_id
+      - direction
+      - description
+      - status
+      - created_at
+      - updated_at
+      title: StakeholderCommitmentRead
+      type: object
+    StakeholderCommitmentRollupRead:
+      description: 'Rollup row for ``GET /api/v1/stakeholder-commitments``.
+
+
+        Extends the commitment shape with enough stakeholder context
+
+        (``full_name``, ``stakeholder_type``) to render "what do I owe the
+
+        board this week" without a second round-trip per row.'
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        description:
+          title: Description
+          type: string
+        direction:
+          title: Direction
+          type: string
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        full_name:
+          title: Full Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        stakeholder_id:
+          format: uuid
+          title: Stakeholder Id
+          type: string
+        stakeholder_type:
+          title: Stakeholder Type
+          type: string
+        status:
+          title: Status
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - stakeholder_id
+      - direction
+      - description
+      - status
+      - created_at
+      - updated_at
+      - full_name
+      - stakeholder_type
+      title: StakeholderCommitmentRollupRead
+      type: object
+    StakeholderCommitmentUpdate:
+      additionalProperties: false
+      description: '``PATCH /api/v1/stakeholder-commitments/{id}`` body — all optional.'
+      properties:
+        description:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Description
+        direction:
+          anyOf:
+          - enum:
+            - we_owe
+            - they_owe
+            type: string
+          - type: 'null'
+          title: Direction
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        status:
+          anyOf:
+          - enum:
+            - open
+            - done
+            - dropped
+            type: string
+          - type: 'null'
+          title: Status
+      title: StakeholderCommitmentUpdate
+      type: object
+    StakeholderCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/stakeholders`` body.'
+      properties:
+        cadence_target_days:
+          anyOf:
+          - exclusiveMinimum: 0.0
+            type: integer
+          - type: 'null'
+          title: Cadence Target Days
+        committee_seats:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Committee Seats
+        communication_preferences_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Communication Preferences Md
+        full_name:
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+          type: string
+        interests_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Interests Md
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        organization:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Organization
+        overall_health:
+          anyOf:
+          - enum:
+            - green
+            - yellow
+            - red
+            type: string
+          - type: 'null'
+          title: Overall Health
+        role_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role Title
+        stakeholder_type:
+          enum:
+          - board_chair
+          - director
+          - ceo
+          - c_suite_peer
+          - investor_sponsor
+          - lender
+          - customer
+          - regulator
+          - auditor
+          - outside_counsel
+          - media
+          - other
+          title: Stakeholder Type
+          type: string
+      required:
+      - full_name
+      - stakeholder_type
+      title: StakeholderCreate
+      type: object
+    StakeholderInteractionCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/stakeholders/{id}/interactions`` body.'
+      properties:
+        channel:
+          enum:
+          - meeting
+          - call
+          - email
+          - message
+          - board_meeting
+          - social
+          - other
+          title: Channel
+          type: string
+        occurred_at:
+          format: date-time
+          title: Occurred At
+          type: string
+        summary_md:
+          minLength: 1
+          title: Summary Md
+          type: string
+      required:
+      - occurred_at
+      - channel
+      - summary_md
+      title: StakeholderInteractionCreate
+      type: object
+    StakeholderInteractionRead:
+      description: '``StakeholderInteraction`` wire shape.'
+      properties:
+        channel:
+          title: Channel
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        occurred_at:
+          format: date-time
+          title: Occurred At
+          type: string
+        stakeholder_id:
+          format: uuid
+          title: Stakeholder Id
+          type: string
+        summary_md:
+          title: Summary Md
+          type: string
+      required:
+      - id
+      - stakeholder_id
+      - occurred_at
+      - channel
+      - summary_md
+      - created_at
+      title: StakeholderInteractionRead
+      type: object
+    StakeholderPositionCreate:
+      additionalProperties: false
+      description: '``POST /api/v1/stakeholders/{id}/positions`` body.
+
+
+        Positions are append-only history: recording a stance change means
+
+        POSTing a new row with a later ``as_of``; the latest ``as_of`` per
+
+        topic wins for display.'
+      properties:
+        as_of:
+          format: date
+          title: As Of
+          type: string
+        note_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note Md
+        stance:
+          enum:
+          - champion
+          - supportive
+          - neutral
+          - skeptical
+          - opposed
+          - unknown
+          title: Stance
+          type: string
+        topic:
+          minLength: 1
+          title: Topic
+          type: string
+      required:
+      - topic
+      - stance
+      - as_of
+      title: StakeholderPositionCreate
+      type: object
+    StakeholderPositionRead:
+      description: '``StakeholderPosition`` wire shape.'
+      properties:
+        as_of:
+          format: date
+          title: As Of
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        note_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note Md
+        stakeholder_id:
+          format: uuid
+          title: Stakeholder Id
+          type: string
+        stance:
+          title: Stance
+          type: string
+        topic:
+          title: Topic
+          type: string
+      required:
+      - id
+      - stakeholder_id
+      - topic
+      - stance
+      - as_of
+      - created_at
+      title: StakeholderPositionRead
+      type: object
+    StakeholderRead:
+      description: '``Stakeholder`` wire shape — row columns plus computed fields.
+
+
+        ``last_interaction_at`` / ``days_since_last_interaction`` derive
+
+        from the newest ``stakeholder_interactions.occurred_at`` (NULL when
+
+        no interactions are logged); ``open_commitments_count`` counts
+
+        ``status=''open''`` commitment rows. All three are computed by the
+
+        handlers with aggregate subqueries in the same SELECT as the
+
+        stakeholder row — never N+1 per-row queries.'
+      properties:
+        cadence_target_days:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Cadence Target Days
+        committee_seats:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Committee Seats
+        communication_preferences_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Communication Preferences Md
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        days_since_last_interaction:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Since Last Interaction
+        deleted_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Deleted At
+        full_name:
+          title: Full Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        interests_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Interests Md
+        last_interaction_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Last Interaction At
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        open_commitments_count:
+          default: 0
+          title: Open Commitments Count
+          type: integer
+        organization:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Organization
+        overall_health:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Overall Health
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        role_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role Title
+        stakeholder_type:
+          title: Stakeholder Type
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - full_name
+      - stakeholder_type
+      - created_at
+      - updated_at
+      title: StakeholderRead
+      type: object
+    StakeholderUpdate:
+      additionalProperties: false
+      description: '``PATCH /api/v1/stakeholders/{id}`` body — every field optional.
+
+
+        The handler applies ``model_dump(exclude_unset=True)`` so nullable
+
+        fields (``overall_health``, ``cadence_target_days``, the ``*_md``
+
+        bodies) can be explicitly cleared with ``null``.'
+      properties:
+        cadence_target_days:
+          anyOf:
+          - exclusiveMinimum: 0.0
+            type: integer
+          - type: 'null'
+          title: Cadence Target Days
+        committee_seats:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Committee Seats
+        communication_preferences_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Communication Preferences Md
+        full_name:
+          anyOf:
+          - maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Full Name
+        interests_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Interests Md
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        organization:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Organization
+        overall_health:
+          anyOf:
+          - enum:
+            - green
+            - yellow
+            - red
+            type: string
+          - type: 'null'
+          title: Overall Health
+        role_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role Title
+        stakeholder_type:
+          anyOf:
+          - enum:
+            - board_chair
+            - director
+            - ceo
+            - c_suite_peer
+            - investor_sponsor
+            - lender
+            - customer
+            - regulator
+            - auditor
+            - outside_counsel
+            - media
+            - other
+            type: string
+          - type: 'null'
+          title: Stakeholder Type
+      title: StakeholderUpdate
+      type: object
     TabularExecutionCreate:
       description: 'Request body for ``POST /api/v1/tabular/execute``.
 
@@ -5701,6 +7369,109 @@ components:
       - manual
       title: TriggerKind
       type: string
+    UrgentItem:
+      description: "One urgent-matters row (red or yellow bucket).\n\n* ``title``\
+        \ — short display line. Commitments prefix the trimmed\n  description with\
+        \ the direction (\"Deliver: ...\" for ``we_owe``,\n  \"Chase: ...\" for ``they_owe``);\
+        \ individual-scope KPI items are\n  titled with the team member's name.\n\
+        * ``why`` — one factual line explaining the flag (due date and\n  distance,\
+        \ cadence gap, or attainment percentage).\n* ``next_step`` — one imperative\
+        \ line derived from ``kind``.\n* ``days_until_due`` — negative means overdue.\
+        \ Null for cadence and\n  KPI items (no due date).\n* ``link`` — frontend\
+        \ route: commitments and cadence breaches point\n  at the stakeholder dossier,\
+        \ KPI items at the KPI detail page."
+      properties:
+        days_until_due:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Days Until Due
+        due_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Due Date
+        kind:
+          enum:
+          - commitment
+          - cadence
+          - kpi
+          title: Kind
+          type: string
+        kpi_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Kpi Id
+        link:
+          title: Link
+          type: string
+        next_step:
+          title: Next Step
+          type: string
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        stakeholder_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stakeholder Name
+        title:
+          title: Title
+          type: string
+        why:
+          title: Why
+          type: string
+      required:
+      - kind
+      - title
+      - why
+      - next_step
+      - link
+      title: UrgentItem
+      type: object
+    UrgentMattersRead:
+      description: '``GET /api/v1/management/urgent-matters`` response.
+
+
+        ``red`` = act today; ``yellow`` = act this week. The combined list
+
+        is capped at 10 items, reds surviving the cap first. Ordering
+
+        encodes the triage judgment: reds by ``days_until_due`` ascending
+
+        (most-overdue first, then soonest due); yellows as commitments (by
+
+        due date), then cadence breaches (largest gap first), then KPIs
+
+        (worst attainment first).'
+      properties:
+        generated_at:
+          format: date-time
+          title: Generated At
+          type: string
+        red:
+          items:
+            $ref: '#/components/schemas/UrgentItem'
+          title: Red
+          type: array
+        yellow:
+          items:
+            $ref: '#/components/schemas/UrgentItem'
+          title: Yellow
+          type: array
+      required:
+      - generated_at
+      - red
+      - yellow
+      title: UrgentMattersRead
+      type: object
     UsageResponse:
       properties:
         group_by:
@@ -11078,6 +12849,831 @@ paths:
       summary: Hybrid (vector + FTS) search over the knowledge base
       tags:
       - knowledge-bases
+  /api/v1/management/ai-jobs:
+    get:
+      description: Feeds the "past briefs" panels. ``job_type`` / ``stakeholder_id``
+        / ``team_member_id`` filter the list. The list shape excludes ``params`` (wizard
+        answers may be large); fetch a single job for the full shape.
+      operationId: list_ai_jobs_api_v1_management_ai_jobs_get
+      parameters:
+      - description: Filter to one job type.
+        in: query
+        name: job_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one job type.
+          title: Job Type
+      - description: Filter to one stakeholder's jobs.
+        in: query
+        name: stakeholder_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one stakeholder's jobs.
+          title: Stakeholder Id
+      - description: Filter to one team member's jobs.
+        in: query
+        name: team_member_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one team member's jobs.
+          title: Team Member Id
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtAiJobListRead'
+                title: Response List Ai Jobs Api V1 Management Ai Jobs Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's Management-AI jobs (newest first)
+      tags:
+      - management-ai
+    post:
+      description: 'Creates the job row at ``status=''pending''`` and returns 202
+        immediately; the background run promotes it to ``running`` and then ``done``
+        / ``error``. Poll ``GET /management/ai-jobs/{job_id}`` for the result. Subject
+        pairing: ``pre_meeting_brief`` requires ``stakeholder_id``, ``review_prep``
+        requires ``team_member_id``, ``kpi_draft`` requires non-empty ``answers``
+        (422 on violation; unknown / cross-user subjects are 404). Results are drafts
+        — confirming them into dossiers/KPIs goes through the existing CRUD.'
+      operationId: create_ai_job_api_v1_management_ai_jobs_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtAiJobCreate'
+        required: true
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtAiJobRead'
+          description: Successful Response
+        '404':
+          description: Subject stakeholder / team member not found
+        '422':
+          description: job_type ↔ subject/answers pairing violated
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Create a Management-AI draft job and schedule the background run
+      tags:
+      - management-ai
+  /api/v1/management/ai-jobs/{job_id}:
+    get:
+      description: Returns the row in any state — poll until ``status`` reaches ``done``
+        (``result_md`` / ``result_json`` populated) or ``error`` (``error`` populated).
+        Includes ``params``.
+      operationId: get_ai_job_api_v1_management_ai_jobs__job_id__get
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtAiJobRead'
+          description: Successful Response
+        '404':
+          description: AI job not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Poll a single Management-AI job (owner-only)
+      tags:
+      - management-ai
+  /api/v1/management/dashboard:
+    get:
+      description: '``departments`` groups the caller''s scope=''department'' KPIs
+        by department; ``team`` lists every active team member with their individual-scope
+        KPIs. Two batched queries total — computed fields ride correlated subqueries,
+        never per-row round-trips.'
+      operationId: get_dashboard_api_v1_management_dashboard_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtDashboardRead'
+          description: Successful Response
+      security:
+      - OAuth2PasswordBearer: []
+      summary: One-call dashboard feed (departments + team)
+      tags:
+      - management-kpis
+  /api/v1/management/documents:
+    get:
+      description: Active (non-deleted) documents owned by the caller, newest ``doc_date``
+        first (NULL dates last, then ``created_at`` desc). The list shape omits ``content_md``
+        and carries ``content_chars`` instead. ``doc_type`` filters exactly; ``q``
+        is a case-insensitive substring match over title, author, and related_tags
+        (not the body); ``date_from`` / ``date_to`` bound ``doc_date`` inclusively.
+      operationId: list_documents_api_v1_management_documents_get
+      parameters:
+      - description: Filter to one document type (exact match).
+        in: query
+        name: doc_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one document type (exact match).
+          title: Doc Type
+      - description: Case-insensitive substring over title OR author OR related_tags
+          (not the body).
+        in: query
+        name: q
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Case-insensitive substring over title OR author OR related_tags
+            (not the body).
+          title: Q
+      - description: Inclusive lower doc_date bound (YYYY-MM-DD).
+        in: query
+        name: date_from
+        required: false
+        schema:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Inclusive lower doc_date bound (YYYY-MM-DD).
+          title: Date From
+      - description: Inclusive upper doc_date bound (YYYY-MM-DD).
+        in: query
+        name: date_to
+        required: false
+        schema:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          description: Inclusive upper doc_date bound (YYYY-MM-DD).
+          title: Date To
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtDocumentListRead'
+                title: Response List Documents Api V1 Management Documents Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's documents (metadata only)
+      tags:
+      - management-documents
+    post:
+      operationId: create_document_api_v1_management_documents_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtDocumentCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtDocumentRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Create a Management-space document
+      tags:
+      - management-documents
+  /api/v1/management/documents/{document_id}:
+    delete:
+      description: Sets ``deleted_at`` on the row; the content is retained in the
+        DB (tombstoned, not erased). A second delete on an already-deleted document
+        returns 404.
+      operationId: delete_document_api_v1_management_documents__document_id__delete
+      parameters:
+      - in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Document not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a document (owner-only)
+      tags:
+      - management-documents
+    get:
+      operationId: get_document_api_v1_management_documents__document_id__get
+      parameters:
+      - in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtDocumentRead'
+          description: Successful Response
+        '404':
+          description: Document not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch a single document incl. content (owner-only)
+      tags:
+      - management-documents
+    patch:
+      operationId: update_document_api_v1_management_documents__document_id__patch
+      parameters:
+      - in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtDocumentUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtDocumentRead'
+          description: Successful Response
+        '404':
+          description: Document not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Partial update of a document (owner-only)
+      tags:
+      - management-documents
+  /api/v1/management/kpi-wizard/questions:
+    get:
+      description: The A2 KPI-interview question script, served from the server as
+        the single source of truth (data-free, shareable work product). The wizard
+        UI renders these in order and submits the collected answers on ``POST /management/ai-jobs``
+        with ``job_type='kpi_draft'``.
+      operationId: get_kpi_wizard_questions_api_v1_management_kpi_wizard_questions_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiWizardQuestionsRead'
+          description: Successful Response
+      security:
+      - OAuth2PasswordBearer: []
+      summary: The static KPI-wizard interview script
+      tags:
+      - management-ai
+  /api/v1/management/kpis:
+    get:
+      description: Active (non-deleted) KPIs owned by the caller, newest first. ``department``
+        / ``scope`` / ``team_member_id`` filter the list.
+      operationId: list_kpis_api_v1_management_kpis_get
+      parameters:
+      - description: Filter to one department (legal|compliance).
+        in: query
+        name: department
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one department (legal|compliance).
+          title: Department
+      - description: Filter to one scope (department|individual).
+        in: query
+        name: scope
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one scope (department|individual).
+          title: Scope
+      - description: Filter to one team member's individual KPIs.
+        in: query
+        name: team_member_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one team member's individual KPIs.
+          title: Team Member Id
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtKpiRead'
+                title: Response List Kpis Api V1 Management Kpis Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's KPIs
+      tags:
+      - management-kpis
+    post:
+      operationId: create_kpi_api_v1_management_kpis_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtKpiCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiRead'
+          description: Successful Response
+        '404':
+          description: Team member not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Create a KPI
+      tags:
+      - management-kpis
+  /api/v1/management/kpis/{kpi_id}:
+    delete:
+      description: Sets ``deleted_at`` on the row; datapoints are retained (they hard-CASCADE
+        only on a future hard delete). A second delete on an already-deleted KPI returns
+        404.
+      operationId: delete_kpi_api_v1_management_kpis__kpi_id__delete
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: KPI not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a KPI (owner-only)
+      tags:
+      - management-kpis
+    get:
+      operationId: get_kpi_api_v1_management_kpis__kpi_id__get
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiRead'
+          description: Successful Response
+        '404':
+          description: KPI not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch a single KPI (owner-only)
+      tags:
+      - management-kpis
+    patch:
+      description: 'Scope/team-member consistency is enforced on the resulting row
+        state: ``scope=''individual''`` must end up paired with a ``team_member_id``
+        (owned by the caller) and ``scope=''department''`` without one — otherwise
+        422.'
+      operationId: update_kpi_api_v1_management_kpis__kpi_id__patch
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtKpiUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiRead'
+          description: Successful Response
+        '404':
+          description: KPI or team member not found
+        '422':
+          description: scope/team_member_id pairing violated
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Partial update of a KPI (owner-only)
+      tags:
+      - management-kpis
+  /api/v1/management/kpis/{kpi_id}/datapoints:
+    get:
+      description: '``from`` / ``to`` bound the period range inclusively. Period strings
+        order lexicographically = chronologically within one cadence, so the range
+        filter is a plain string compare. Bounds must match the KPI''s period format
+        (422 on mismatch).'
+      operationId: list_datapoints_api_v1_management_kpis__kpi_id__datapoints_get
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      - description: Inclusive lower period bound.
+        in: query
+        name: from
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive lower period bound.
+          title: From
+      - description: Inclusive upper period bound.
+        in: query
+        name: to
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Inclusive upper period bound.
+          title: To
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtKpiDatapointRead'
+                title: Response List Datapoints Api V1 Management Kpis  Kpi Id  Datapoints
+                  Get
+                type: array
+          description: Successful Response
+        '404':
+          description: KPI not found
+        '422':
+          description: from/to format does not match the KPI's cadence
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List a KPI's datapoints (period ascending)
+      tags:
+      - management-kpis
+    post:
+      description: Creates the datapoint (201). If the period already has a value,
+        returns 409 unless ``?overwrite=true`` — then the existing row is updated
+        in place (200) and audited as ``mgmt_kpi.datapoint_update``. ``period`` must
+        be ``YYYY-MM`` for monthly KPIs and ``YYYY-Qn`` for quarterly ones (422 on
+        mismatch).
+      operationId: create_datapoint_api_v1_management_kpis__kpi_id__datapoints_post
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      - description: Update the existing row when the period already has a value.
+        in: query
+        name: overwrite
+        required: false
+        schema:
+          default: false
+          description: Update the existing row when the period already has a value.
+          title: Overwrite
+          type: boolean
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtKpiDatapointCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiDatapointRead'
+          description: Successful Response
+        '404':
+          description: KPI not found
+        '409':
+          description: Period already recorded (and overwrite not set)
+        '422':
+          description: period format does not match the KPI's cadence
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Record a KPI value for one period (upsert-by-period)
+      tags:
+      - management-kpis
+  /api/v1/management/kpis/{kpi_id}/series:
+    get:
+      operationId: get_kpi_series_api_v1_management_kpis__kpi_id__series_get
+      parameters:
+      - in: path
+        name: kpi_id
+        required: true
+        schema:
+          title: Kpi Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtKpiSeriesRead'
+          description: Successful Response
+        '404':
+          description: KPI not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Chart feed for one KPI (definition + ordered datapoints)
+      tags:
+      - management-kpis
+  /api/v1/management/team-members:
+    get:
+      description: Active (non-deleted) team members owned by the caller, newest first,
+        each with ``kpi_count`` (active KPIs assigned).
+      operationId: list_team_members_api_v1_management_team_members_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtTeamMemberRead'
+                title: Response List Team Members Api V1 Management Team Members Get
+                type: array
+          description: Successful Response
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's team roster
+      tags:
+      - management-kpis
+    post:
+      operationId: create_team_member_api_v1_management_team_members_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtTeamMemberCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtTeamMemberRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Add a team member to the caller's roster
+      tags:
+      - management-kpis
+  /api/v1/management/team-members/{team_member_id}:
+    delete:
+      description: Sets ``deleted_at`` on the member AND on their active individual-scope
+        KPIs in the same transaction, so those KPIs disappear from every read surface
+        (list, detail, dashboard). A second delete on an already-deleted member returns
+        404.
+      operationId: delete_team_member_api_v1_management_team_members__team_member_id__delete
+      parameters:
+      - in: path
+        name: team_member_id
+        required: true
+        schema:
+          title: Team Member Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Team member not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a team member (owner-only)
+      tags:
+      - management-kpis
+    get:
+      operationId: get_team_member_api_v1_management_team_members__team_member_id__get
+      parameters:
+      - in: path
+        name: team_member_id
+        required: true
+        schema:
+          title: Team Member Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtTeamMemberRead'
+          description: Successful Response
+        '404':
+          description: Team member not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch a single team member (owner-only)
+      tags:
+      - management-kpis
+    patch:
+      operationId: update_team_member_api_v1_management_team_members__team_member_id__patch
+      parameters:
+      - in: path
+        name: team_member_id
+        required: true
+        schema:
+          title: Team Member Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtTeamMemberUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtTeamMemberRead'
+          description: Successful Response
+        '404':
+          description: Team member not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Partial update of a team member (owner-only)
+      tags:
+      - management-kpis
+  /api/v1/management/urgent-matters:
+    get:
+      description: 'Computed and read-only: scans the caller''s open commitments,
+        stakeholder cadence breaches, and KPIs at or below 80% attainment, and buckets
+        findings into ``red`` / ``yellow`` per the triage rule set (overdue commitments
+        and regulator/board-chair/CEO commitments inside a week are red; other commitments
+        due in the next 5 days, regulator items 8-14 days out, cadence breaches, and
+        below-green KPIs are yellow). Each band is capped independently: up to 10
+        reds and up to 5 yellows, so a full red band never starves the yellow one.
+        Documents scanning is out of scope (later MCP work).'
+      operationId: get_urgent_matters_api_v1_management_urgent_matters_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UrgentMattersRead'
+          description: Successful Response
+      security:
+      - OAuth2PasswordBearer: []
+      summary: The "Urgent Matters" feed — red (act today) and yellow (act this week)
+      tags:
+      - management-urgent
   /api/v1/mcp/oauth:
     get:
       description: 'GET /api/v1/mcp/oauth — per-user OAuth connection status for all
@@ -12807,6 +15403,501 @@ paths:
       summary: Declared inputs (form schema) for the skill-input-form pattern
       tags:
       - skills
+  /api/v1/stakeholder-commitments:
+    get:
+      description: '"What do I owe the board this week" — every commitment across
+        the caller''s active stakeholders, optionally filtered by ``status`` and/or
+        ``direction``. Each row carries the stakeholder''s ``full_name`` and ``stakeholder_type``.
+        Ordered by due date (soonest first, undated last), then newest.'
+      operationId: rollup_commitments_api_v1_stakeholder_commitments_get
+      parameters:
+      - description: Filter to one status (open|done|dropped).
+        in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one status (open|done|dropped).
+          title: Status
+      - description: Filter to one direction (we_owe|they_owe).
+        in: query
+        name: direction
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one direction (we_owe|they_owe).
+          title: Direction
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StakeholderCommitmentRollupRead'
+                title: Response Rollup Commitments Api V1 Stakeholder Commitments
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Commitments rollup across all the caller's stakeholders
+      tags:
+      - stakeholders
+  /api/v1/stakeholder-commitments/{commitment_id}:
+    patch:
+      operationId: update_commitment_api_v1_stakeholder_commitments__commitment_id__patch
+      parameters:
+      - in: path
+        name: commitment_id
+        required: true
+        schema:
+          title: Commitment Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderCommitmentUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderCommitmentRead'
+          description: Successful Response
+        '404':
+          description: Commitment not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Update a commitment (status / description / due_date / direction)
+      tags:
+      - stakeholders
+  /api/v1/stakeholders:
+    get:
+      description: Active (non-deleted) stakeholders owned by the caller, newest first.
+        ``stakeholder_type`` filters to one type; ``space`` filters to a named type
+        group (board, c-suite, investors, customers, regulators, outside-firms, media);
+        ``needs_attention=true`` keeps only rows whose ``days_since_last_interaction``
+        exceeds their ``cadence_target_days``.
+      operationId: list_stakeholders_api_v1_stakeholders_get
+      parameters:
+      - description: Filter to a single stakeholder_type.
+        in: query
+        name: stakeholder_type
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to a single stakeholder_type.
+          title: Stakeholder Type
+      - description: Filter to a named type group (e.g. 'board').
+        in: query
+        name: space
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to a named type group (e.g. 'board').
+          title: Space
+      - description: Only rows past their contact cadence.
+        in: query
+        name: needs_attention
+        required: false
+        schema:
+          default: false
+          description: Only rows past their contact cadence.
+          title: Needs Attention
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StakeholderRead'
+                title: Response List Stakeholders Api V1 Stakeholders Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's stakeholders
+      tags:
+      - stakeholders
+    post:
+      operationId: create_stakeholder_api_v1_stakeholders_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Create a stakeholder
+      tags:
+      - stakeholders
+  /api/v1/stakeholders/{stakeholder_id}:
+    delete:
+      description: Sets ``deleted_at`` on the row; child interactions / commitments
+        / positions are retained (they hard-CASCADE only on a future hard delete).
+        A second delete on an already-deleted stakeholder returns 404.
+      operationId: delete_stakeholder_api_v1_stakeholders__stakeholder_id__delete
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a stakeholder (owner-only)
+      tags:
+      - stakeholders
+    get:
+      operationId: get_stakeholder_api_v1_stakeholders__stakeholder_id__get
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderRead'
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch a single stakeholder (owner-only)
+      tags:
+      - stakeholders
+    patch:
+      operationId: update_stakeholder_api_v1_stakeholders__stakeholder_id__patch
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderRead'
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Partial update of a stakeholder (owner-only)
+      tags:
+      - stakeholders
+  /api/v1/stakeholders/{stakeholder_id}/commitments:
+    get:
+      description: Ordered by due date (soonest first, undated last), then newest.
+        ``status`` optionally filters to one lifecycle state.
+      operationId: list_commitments_api_v1_stakeholders__stakeholder_id__commitments_get
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      - description: Filter to one status (open|done|dropped).
+        in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one status (open|done|dropped).
+          title: Status
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StakeholderCommitmentRead'
+                title: Response List Commitments Api V1 Stakeholders  Stakeholder
+                  Id  Commitments Get
+                type: array
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List a stakeholder's commitments
+      tags:
+      - stakeholders
+    post:
+      operationId: create_commitment_api_v1_stakeholders__stakeholder_id__commitments_post
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderCommitmentCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderCommitmentRead'
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Record a commitment for a stakeholder
+      tags:
+      - stakeholders
+  /api/v1/stakeholders/{stakeholder_id}/interactions:
+    get:
+      operationId: list_interactions_api_v1_stakeholders__stakeholder_id__interactions_get
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StakeholderInteractionRead'
+                title: Response List Interactions Api V1 Stakeholders  Stakeholder
+                  Id  Interactions Get
+                type: array
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List a stakeholder's interactions (newest first)
+      tags:
+      - stakeholders
+    post:
+      operationId: create_interaction_api_v1_stakeholders__stakeholder_id__interactions_post
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderInteractionCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderInteractionRead'
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Log an interaction with a stakeholder
+      tags:
+      - stakeholders
+  /api/v1/stakeholders/{stakeholder_id}/positions:
+    get:
+      description: Full history by default, grouped by topic with the newest ``as_of``
+        first inside each topic. ``latest=true`` collapses to one row per topic —
+        the latest ``as_of`` wins (ties broken by ``created_at``).
+      operationId: list_positions_api_v1_stakeholders__stakeholder_id__positions_get
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      - description: Return only the latest stance per topic.
+        in: query
+        name: latest
+        required: false
+        schema:
+          default: false
+          description: Return only the latest stance per topic.
+          title: Latest
+          type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/StakeholderPositionRead'
+                title: Response List Positions Api V1 Stakeholders  Stakeholder Id  Positions
+                  Get
+                type: array
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List a stakeholder's stance history
+      tags:
+      - stakeholders
+    post:
+      operationId: create_position_api_v1_stakeholders__stakeholder_id__positions_post
+      parameters:
+      - in: path
+        name: stakeholder_id
+        required: true
+        schema:
+          title: Stakeholder Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeholderPositionCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeholderPositionRead'
+          description: Successful Response
+        '404':
+          description: Stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Record a stakeholder's stance on a topic (append-only history)
+      tags:
+      - stakeholders
   /api/v1/tabular/execute:
     post:
       description: 'Kick off a tabular execution against the supplied document corpus.

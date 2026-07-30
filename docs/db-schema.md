@@ -2052,6 +2052,391 @@ CREATE TABLE autonomous_artifacts (
 CREATE INDEX ix_autonomous_artifacts_session_id ON autonomous_artifacts(session_id);
 ```
 
+---
+
+## Stakeholders (Management tab, migration `0066`)
+
+Per-user records of the people the executive manages relationships with —
+board members, C-suite peers, investors/lenders, customers, regulators,
+auditors, outside counsel, media. Owner-scoped exactly like `projects`
+(cross-user access = 404 at the API). `stakeholders` soft-deletes via
+`deleted_at`; the three child tables hard-CASCADE off the stakeholder row.
+Committee roles are a free-text detail on a director (`committee_seats`),
+not their own stakeholder type.
+
+```sql
+CREATE TABLE stakeholders (
+    id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id                     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,  -- fk_stakeholders_owner_id
+    full_name                    TEXT NOT NULL,
+    organization                 TEXT,
+    role_title                   TEXT,
+    stakeholder_type             TEXT NOT NULL,
+    committee_seats              TEXT,          -- free-text detail (e.g. 'Audit (chair); Comp')
+    overall_health               TEXT,          -- manually set only; never derived. 3-level traffic light since 0070
+    cadence_target_days          INTEGER,       -- user-configurable; drives needs_attention
+    interests_md                 TEXT,
+    communication_preferences_md TEXT,
+    notes_md                     TEXT,
+    created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at                   TIMESTAMPTZ,   -- soft delete; NULL means active
+    CONSTRAINT chk_stakeholders_full_name_len CHECK (
+        char_length(full_name) > 0 AND char_length(full_name) <= 200
+    ),
+    CONSTRAINT chk_stakeholders_type CHECK (
+        stakeholder_type IN ('board_chair', 'director', 'ceo', 'c_suite_peer',
+                             'investor_sponsor', 'lender', 'customer', 'regulator',
+                             'auditor', 'outside_counsel', 'media', 'other')
+    ),
+    -- Migration 0070 replaced the original 4-level scale
+    -- (strong | solid | needs_attention | at_risk) with a 3-level
+    -- traffic light, mapping strong+solid -> green,
+    -- needs_attention -> yellow, at_risk -> red (the downgrade maps
+    -- green back to solid — the strong/solid merge is lossy).
+    CONSTRAINT chk_stakeholders_health CHECK (
+        overall_health IS NULL OR overall_health IN
+            ('green', 'yellow', 'red')
+    ),
+    CONSTRAINT chk_stakeholders_cadence_positive CHECK (
+        cadence_target_days IS NULL OR cadence_target_days > 0
+    )
+);
+
+CREATE INDEX ix_stakeholders_owner_id ON stakeholders(owner_id);
+
+CREATE TABLE stakeholder_interactions (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    stakeholder_id UUID NOT NULL REFERENCES stakeholders(id) ON DELETE CASCADE,  -- fk_stakeholder_interactions_stakeholder_id
+    occurred_at    TIMESTAMPTZ NOT NULL,  -- user-asserted touchpoint time
+    channel        TEXT NOT NULL,
+    summary_md     TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_stakeholder_interactions_channel CHECK (
+        channel IN ('meeting', 'call', 'email', 'message', 'board_meeting',
+                    'social', 'other')
+    )
+);
+
+-- Covers the last-interaction aggregate on the list endpoints.
+CREATE INDEX ix_stakeholder_interactions_stakeholder_occurred
+    ON stakeholder_interactions(stakeholder_id, occurred_at DESC);
+
+CREATE TABLE stakeholder_commitments (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    stakeholder_id UUID NOT NULL REFERENCES stakeholders(id) ON DELETE CASCADE,  -- fk_stakeholder_commitments_stakeholder_id
+    direction      TEXT NOT NULL,             -- we_owe | they_owe
+    description    TEXT NOT NULL,
+    due_date       DATE,
+    status         TEXT NOT NULL DEFAULT 'open',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_stakeholder_commitments_direction CHECK (
+        direction IN ('we_owe', 'they_owe')
+    ),
+    CONSTRAINT chk_stakeholder_commitments_status CHECK (
+        status IN ('open', 'done', 'dropped')
+    )
+);
+
+-- Covers the open-count aggregate and the rollup's status filter.
+CREATE INDEX ix_stakeholder_commitments_stakeholder_status
+    ON stakeholder_commitments(stakeholder_id, status);
+
+CREATE TABLE stakeholder_positions (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    stakeholder_id UUID NOT NULL REFERENCES stakeholders(id) ON DELETE CASCADE,  -- fk_stakeholder_positions_stakeholder_id
+    topic          TEXT NOT NULL,
+    stance         TEXT NOT NULL,
+    note_md        TEXT,
+    as_of          DATE NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chk_stakeholder_positions_stance CHECK (
+        stance IN ('champion', 'supportive', 'neutral', 'skeptical',
+                   'opposed', 'unknown')
+    )
+);
+
+-- Multiple rows per (stakeholder, topic) = stance history; the latest
+-- as_of wins for display. The index covers the per-topic latest lookup.
+CREATE INDEX ix_stakeholder_positions_stakeholder_topic_asof
+    ON stakeholder_positions(stakeholder_id, topic, as_of DESC);
+```
+
+The API's computed read fields (`last_interaction_at`,
+`days_since_last_interaction`, `open_commitments_count`) are derived at
+query time with correlated aggregate subqueries over
+`stakeholder_interactions` / `stakeholder_commitments` — they are not
+stored columns.
+
+---
+
+## Management KPIs (migration `0067`)
+
+Per-user KPI tracking for the legal/compliance function — the numbers a
+GC uses to prove the department's value. Owner-scoped exactly like
+`stakeholders` (cross-user access = 404 at the API). `mgmt_team_members`
+and `mgmt_kpis` soft-delete via `deleted_at`; soft-deleting a team member
+also tombstones their individual-scope KPIs in the same API transaction
+(the DB-level CASCADE fires only on a hard delete). Datapoint `period`
+is opaque text at the DB — `'YYYY-MM'` for monthly KPIs, `'YYYY-Qn'` for
+quarterly — validated in the API layer against the parent KPI's cadence;
+lexicographic order of the period string is chronological within one
+cadence, so range filters and series ordering are plain string compares.
+
+```sql
+CREATE TABLE mgmt_team_members (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id             UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,  -- fk_mgmt_team_members_owner_id
+    name                 TEXT NOT NULL,
+    role_title           TEXT NOT NULL,
+    department           TEXT NOT NULL,
+    seniority            TEXT,
+    strengths_md         TEXT,
+    development_areas_md TEXT,
+    notes_md             TEXT,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at           TIMESTAMPTZ,   -- soft delete; NULL means active
+    CONSTRAINT chk_mgmt_team_members_name_len CHECK (
+        char_length(name) > 0 AND char_length(name) <= 200
+    ),
+    CONSTRAINT chk_mgmt_team_members_department CHECK (
+        department IN ('legal', 'compliance')
+    )
+);
+
+CREATE INDEX ix_mgmt_team_members_owner_id ON mgmt_team_members(owner_id);
+
+CREATE TABLE mgmt_kpis (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id       UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,  -- fk_mgmt_kpis_owner_id
+    name           TEXT NOT NULL,
+    department     TEXT NOT NULL,
+    scope          TEXT NOT NULL,             -- department | individual
+    team_member_id UUID REFERENCES mgmt_team_members(id) ON DELETE CASCADE,  -- fk_mgmt_kpis_team_member_id
+    unit           TEXT NOT NULL,             -- free text: 'days', '%', 'USD', 'count', ...
+    cadence        TEXT NOT NULL,             -- monthly | quarterly; drives period format
+    direction      TEXT NOT NULL,             -- higher_is_better | lower_is_better
+    baseline       NUMERIC,
+    target         NUMERIC,
+    rationale_md   TEXT,                      -- why this number proves legal's value
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at     TIMESTAMPTZ,               -- soft delete; NULL means active
+    CONSTRAINT chk_mgmt_kpis_name_len CHECK (
+        char_length(name) > 0 AND char_length(name) <= 200
+    ),
+    CONSTRAINT chk_mgmt_kpis_department CHECK (
+        department IN ('legal', 'compliance')
+    ),
+    CONSTRAINT chk_mgmt_kpis_scope CHECK (
+        scope IN ('department', 'individual')
+    ),
+    -- Individual KPIs pair with exactly one team member; department
+    -- KPIs pair with none.
+    CONSTRAINT chk_mgmt_kpis_scope_team_member CHECK (
+        (scope = 'individual') = (team_member_id IS NOT NULL)
+    ),
+    CONSTRAINT chk_mgmt_kpis_cadence CHECK (
+        cadence IN ('monthly', 'quarterly')
+    ),
+    CONSTRAINT chk_mgmt_kpis_direction CHECK (
+        direction IN ('higher_is_better', 'lower_is_better')
+    )
+);
+
+-- Covers the owner-scoped list and the dashboard's department grouping.
+CREATE INDEX ix_mgmt_kpis_owner_department ON mgmt_kpis(owner_id, department);
+
+CREATE TABLE mgmt_kpi_datapoints (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kpi_id     UUID NOT NULL REFERENCES mgmt_kpis(id) ON DELETE CASCADE,  -- fk_mgmt_kpi_datapoints_kpi_id
+    period     TEXT NOT NULL,    -- 'YYYY-MM' (monthly) | 'YYYY-Qn' (quarterly); API-validated
+    value      NUMERIC NOT NULL,
+    note_md    TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- One value per KPI per period. The constraint's backing index also
+    -- covers the (kpi_id, period) range scans on the datapoints/series
+    -- endpoints — no separate index needed.
+    CONSTRAINT uq_mgmt_kpi_datapoints_kpi_period UNIQUE (kpi_id, period)
+);
+```
+
+The API's computed read fields (`latest_period`, `latest_value`,
+`previous_value`, `datapoint_count` on KPIs; `kpi_count` on team members)
+are derived at query time with correlated scalar subqueries over
+`mgmt_kpi_datapoints` / `mgmt_kpis` — they are not stored columns.
+`attainment_pct` is computed in the API layer from `latest_value`,
+`target`, and `direction` (the ratio is inverted for `lower_is_better`
+so >100% always means "beating target"). All `NUMERIC` values serialize
+as JSON **strings** on the wire.
+
+## Management documents (migration `0068`)
+
+Management-tab Documents module: a per-user **private document space**
+for executive work product — board packs, meeting minutes, memos,
+briefing notes. One table, owner-scoped like `stakeholders` and the
+`mgmt_*` KPI tables (cross-user access = 404 at the API); soft delete
+via `deleted_at`.
+
+**v1 content model — inline text, not binary.** Documents are markdown
+TEXT stored inline in Postgres (`content_md`), **not** binary uploads
+through the ingestion pipeline. Rationale: the Management space holds
+board packs/minutes/memos which for the demo are markdown; inline
+storage keeps the AI pre-meeting-brief feature (next module) a simple
+SELECT away, with zero MinIO/worker coupling. Binary/PDF upload via the
+existing ingestion pipeline is explicitly roadmap.
+
+`doc_type` is **free text** (CHECK-bounded 1..60 chars), deliberately
+NOT an enum — the corpus vocabulary is open ("board_pack", "minutes",
+"memo", "strategy note" coexist without a migration). `related_tags` is
+a free-text comma-separated list of storyline/topic tags. `doc_date` is
+the user-asserted document date (board-meeting date, memo date),
+distinct from `created_at` (row insert time); the list API orders by it
+descending, NULLs last.
+
+```sql
+CREATE TABLE mgmt_documents (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id     UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,  -- fk_mgmt_documents_owner_id
+    title        TEXT NOT NULL,
+    doc_type     TEXT NOT NULL,    -- free text (open vocabulary), NOT an enum
+    doc_date     DATE,             -- user-asserted document date
+    author       TEXT,
+    related_tags TEXT,             -- comma-separated storyline/topic tags, free text
+    content_md   TEXT NOT NULL,    -- inline markdown body (v1 content model)
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at   TIMESTAMPTZ,      -- soft delete; NULL = active
+    CONSTRAINT chk_mgmt_documents_title_len CHECK (
+        char_length(title) > 0 AND char_length(title) <= 300
+    ),
+    CONSTRAINT chk_mgmt_documents_doc_type_len CHECK (
+        char_length(doc_type) > 0 AND char_length(doc_type) <= 60
+    ),
+    CONSTRAINT chk_mgmt_documents_author_len CHECK (
+        author IS NULL OR char_length(author) <= 200
+    )
+);
+
+CREATE INDEX ix_mgmt_documents_owner_doc_type ON mgmt_documents(owner_id, doc_type);
+-- Covers the default list ordering (newest doc_date first).
+CREATE INDEX ix_mgmt_documents_owner_doc_date ON mgmt_documents(owner_id, doc_date DESC);
+```
+
+The list API's `content_chars` (character count of the omitted body) is
+computed at query time with `char_length(content_md)` in the same
+SELECT as the rows — it is not a stored column, and list responses
+never transfer document bodies. The `?q=` filter matches title, author,
+and related_tags only — deliberately not `content_md` — to keep the
+scan cheap without an FTS index.
+
+## Management AI jobs (migration `0069`)
+
+Management-tab AI-features module: background draft jobs over the three
+sibling modules above. One table, owner-scoped like the other `mgmt_*`
+tables (cross-user access = 404 at the API). Three `job_type`s:
+`pre_meeting_brief` (stakeholder briefing), `review_prep` (1-on-1
+performance-review prep for a team member), `kpi_draft` (KPI catalog
+drafted from the static wizard interview).
+
+**Per-instance data, draft-then-confirm.** Everything the composer
+reads is this deployment's per-user rows (stakeholders / KPIs /
+documents), and everything the job produces is a **draft**: AI output
+never writes to dossiers, KPI definitions, or documents directly — the
+user reviews the draft in the UI and creates confirmed rows through the
+existing CRUD surfaces. This mirrors the transparency/governance
+posture of ADR 0016 and the Easy Playbook wizard's validate-before-save
+step.
+
+**Prompts are data-free reviewable assets.** The prompt templates live
+in `api/app/management_ai/prompts/*.md` (and the wizard question script
+in `api/app/management_ai/kpi_questions.py`) with no user or deployment
+data in them — the composer fills `{placeholders}` and passes gathered
+context as the user message. They are shareable, attorney-reviewable
+work product, per the project's transparency founding principle.
+
+Subject pairing is structural (`chk_mgmt_ai_jobs_subject`): a
+`pre_meeting_brief` row has `stakeholder_id` and a `review_prep` row
+has `team_member_id`; `kpi_draft` rows have neither (their inputs ride
+in `params.answers`). Subject FKs are `ON DELETE SET NULL` so job
+history survives subject deletion. `status` walks
+`pending → running → done | error` (the background run — FastAPI
+`BackgroundTasks`, same machinery as the playbook executor — always
+lands a terminal state and stamps `completed_at`). `result_md` carries
+the markdown brief; `result_json` carries the schema-validated KPI
+draft (`{kpis: [...], not_measured: [...]}`); `error` the failure
+message. Rows are immutable job history — no soft delete, no update
+surface.
+
+```sql
+CREATE TABLE mgmt_ai_jobs (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id       UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,          -- fk_mgmt_ai_jobs_owner_id
+    job_type       TEXT NOT NULL,    -- pre_meeting_brief | review_prep | kpi_draft
+    stakeholder_id UUID REFERENCES stakeholders(id) ON DELETE SET NULL,            -- fk_mgmt_ai_jobs_stakeholder_id
+    team_member_id UUID REFERENCES mgmt_team_members(id) ON DELETE SET NULL,       -- fk_mgmt_ai_jobs_team_member_id
+    status         TEXT NOT NULL DEFAULT 'pending',  -- pending | running | done | error
+    params         JSONB,            -- request-side inputs (wizard answers)
+    result_md      TEXT,             -- the draft brief (markdown, source-markered)
+    result_json    JSONB,            -- validated KPI-draft catalog (kpi_draft only)
+    error          TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at   TIMESTAMPTZ,
+    CONSTRAINT chk_mgmt_ai_jobs_job_type CHECK (
+        job_type IN ('pre_meeting_brief', 'review_prep', 'kpi_draft')
+    ),
+    CONSTRAINT chk_mgmt_ai_jobs_status CHECK (
+        status IN ('pending', 'running', 'done', 'error')
+    ),
+    -- Structural subject pairing: brief iff stakeholder, review iff member.
+    CONSTRAINT chk_mgmt_ai_jobs_subject CHECK (
+        (job_type = 'pre_meeting_brief') = (stakeholder_id IS NOT NULL)
+        AND (job_type = 'review_prep') = (team_member_id IS NOT NULL)
+    )
+);
+
+-- Covers the newest-first "past briefs" list per owner.
+CREATE INDEX ix_mgmt_ai_jobs_owner_created ON mgmt_ai_jobs(owner_id, created_at DESC);
+```
+
+## Urgent Matters (computed endpoint — no tables)
+
+`GET /api/v1/management/urgent-matters` is a read-only, owner-scoped
+triage feed computed at request time over three existing sources —
+`stakeholder_commitments` (open, dated, both directions),
+`stakeholders` cadence state (`days_since_last_interaction` vs
+`cadence_target_days`, derived from `stakeholder_interactions`), and
+`mgmt_kpis` attainment (latest `mgmt_kpi_datapoints.value` vs
+`target`). No new tables, columns, or audit rows.
+
+The rule set (the GC's triage judgment, from his interview):
+
+* **Horizon** — commitments due within 7 days; extended to 14 days for
+  `regulator` / `auditor` stakeholders.
+* **RED** — (a) any open commitment past due; (b) a regulator/auditor
+  commitment due within 14 days; (c) a `board_chair` / `ceo`
+  commitment due within 7 days; (d) a `c_suite_peer` commitment due
+  within 3 days.
+* **YELLOW** — (e) any other open commitment due within 7 days; (f) a
+  cadence breach (`days_since_last_interaction >
+  cadence_target_days`; stakeholders with no cadence target or no
+  interactions are never flagged); (g)/(h) a department- or
+  individual-scope KPI whose attainment is ≤ 50% of target (the red
+  band — surfaced as yellow: behind, but not same-day).
+* **Ranking / cap** — reds first (most-overdue first, then soonest
+  due), then yellows (commitments by due date, cadence breaches by
+  days-over, KPIs by attainment ascending); the combined list is
+  capped at 10 items, reds surviving the cap first.
+
+Queries are batched (commitments joined to stakeholders in one SELECT;
+cadence and KPI aggregates ride the same correlated-subquery pattern
+as their list endpoints) — never N+1. Documents scanning is explicitly
+out of scope (later MCP work).
+
 ## M4+ tables (sketched, land at the indicated milestone)
 
 ### `autonomous_tasks` (M4 — **superseded**)
