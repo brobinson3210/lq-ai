@@ -48,7 +48,7 @@ const SAMPLE: Stakeholder = {
 	organization: 'Meridian Capital',
 	role_title: 'Board Chair',
 	committee_seats: 'Audit, Compensation',
-	overall_health: 'solid',
+	overall_health: 'green',
 	cadence_target_days: 30,
 	last_interaction_at: '2026-07-20T15:00:00Z',
 	days_since_last_interaction: 4,
