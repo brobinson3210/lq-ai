@@ -4,8 +4,9 @@ An MCP (Model Context Protocol) stdio server that lets an MCP client
 (Claude Code in a terminal today; potentially an autonomous agent later)
 read and edit the entries in the Management tab's modules: stakeholders,
 interactions, commitments, positions, team members, KPIs and their
-datapoints, documents, plus the read-only Urgent Matters and dashboard
-feeds.
+datapoints, documents, outside counsel (firms, chosen partners, budgets,
+line-item invoices, the value ledger), plus the read-only Urgent
+Matters, KPI dashboard and outside-counsel summary feeds.
 
 Security posture — the fence
 ----------------------------
@@ -42,6 +43,7 @@ import datetime
 import os
 import sys
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 
@@ -74,6 +76,30 @@ def _login() -> str:
     return resp.json()["access_token"]
 
 
+def _check_fence(method: str, path: str) -> None:
+    """Refuse any request that would land outside the Management tab.
+
+    Checks both the path as written and the path httpx will actually
+    send: an id containing ``../`` (or its percent-encoded form) would
+    otherwise pass a naive prefix check and then be normalised by the
+    URL layer into a different LQ.AI area.
+    """
+
+    blocked = ValueError(
+        f"Blocked: {path!r} is outside the Management tab. "
+        "This connector only touches Management modules."
+    )
+    decoded = unquote(path)
+    if any(seg in (".", "..") for seg in decoded.split("/")) or "\\" in decoded:
+        raise blocked
+    if not path.startswith(_ALLOWED_PREFIXES):
+        raise blocked
+    base_path = httpx.URL(BASE_URL).path.rstrip("/")
+    sent = _client.build_request(method, path).url.path
+    if not any(sent.startswith(base_path + prefix) for prefix in _ALLOWED_PREFIXES):
+        raise blocked
+
+
 def _request(
     method: str,
     path: str,
@@ -83,8 +109,7 @@ def _request(
 ) -> Any:
     """Authenticated call to the LQ.AI API — Management paths only."""
 
-    if not path.startswith(_ALLOWED_PREFIXES):
-        raise ValueError(f"Blocked: {path!r} is outside the Management tab. This connector only touches Management modules.")
+    _check_fence(method, path)
 
     global _token
     if _token is None:
@@ -572,6 +597,261 @@ def delete_document(document_id: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Outside Counsel (Operations zone)
+# ---------------------------------------------------------------------------
+
+_OC = "/management/outside-counsel"
+
+
+@mcp.tool()
+def outside_counsel_summary(year: int | None = None) -> Any:
+    """The Outside Counsel dashboard for one year (default: this year):
+    budget vs actual per quarter with a band (110%+ of budget = yellow,
+    125%+ = red), spend by firm and by practice area, staffing flags
+    (more than 2 people billing one task on one day), firms below the
+    10% discount floor or above the 5% rate-increase cap, partners who
+    have left their firm, and value-ledger totals by category."""
+    return _request("GET", f"{_OC}/summary", params={"year": year})
+
+
+@mcp.tool()
+def list_firms() -> Any:
+    """List outside law firms with their chosen partners, discount %,
+    hourly rate increase %, policy flags, and total spend."""
+    return _request("GET", f"{_OC}/firms")
+
+
+@mcp.tool()
+def create_firm(
+    name: str,
+    discount_pct: float | str | None = None,
+    rate_increase_pct: float | str | None = None,
+    rate_year: int | None = None,
+    notes_md: str | None = None,
+) -> Any:
+    """Add an outside law firm. discount_pct is the negotiated discount
+    (policy minimum 10); rate_increase_pct is this year's hourly increase
+    (policy cap 5) for rate_year."""
+    return _request(
+        "POST",
+        f"{_OC}/firms",
+        json=_drop_none(
+            {
+                "name": name,
+                "discount_pct": discount_pct,
+                "rate_increase_pct": rate_increase_pct,
+                "rate_year": rate_year,
+                "notes_md": notes_md,
+            }
+        ),
+    )
+
+
+@mcp.tool()
+def update_firm(firm_id: str, updates: dict[str, Any]) -> Any:
+    """Edit a firm (partial update). Allowed keys: name, discount_pct,
+    rate_increase_pct, rate_year, notes_md."""
+    return _request("PATCH", f"{_OC}/firms/{firm_id}", json=updates)
+
+
+@mcp.tool()
+def delete_firm(firm_id: str) -> Any:
+    """DESTRUCTIVE: remove a firm from the UI (soft delete). Its invoices
+    drop out of every spend total."""
+    return _request("DELETE", f"{_OC}/firms/{firm_id}")
+
+
+@mcp.tool()
+def add_firm_partner(
+    firm_id: str,
+    name: str,
+    stakeholder_id: str | None = None,
+    practice_area: str | None = None,
+) -> Any:
+    """Record a partner the GC chose at a firm ("I hire partners, not
+    firms"). stakeholder_id optionally links the partner's relationship
+    dossier. practice_area: commercial | corporate | employment | ip |
+    litigation | privacy | regulatory | other."""
+    return _request(
+        "POST",
+        f"{_OC}/firms/{firm_id}/partners",
+        json=_drop_none(
+            {"name": name, "stakeholder_id": stakeholder_id, "practice_area": practice_area}
+        ),
+    )
+
+
+@mcp.tool()
+def update_firm_partner(partner_id: str, updates: dict[str, Any]) -> Any:
+    """Edit a chosen partner (partial update). Allowed keys: name,
+    stakeholder_id, practice_area, status, left_at (YYYY-MM-DD),
+    resolution_note. To flag that a partner LEFT their firm set
+    status='left_firm' (raises a red Urgent Matters item); resolve it
+    with status='followed' (work follows them) or 'replaced' (new partner
+    chosen), ideally with a resolution_note."""
+    return _request("PATCH", f"{_OC}/partners/{partner_id}", json=updates)
+
+
+@mcp.tool()
+def delete_firm_partner(partner_id: str) -> Any:
+    """DESTRUCTIVE: remove a chosen partner from a firm (soft delete)."""
+    return _request("DELETE", f"{_OC}/partners/{partner_id}")
+
+
+@mcp.tool()
+def set_outside_counsel_budget(
+    period: str,
+    amount: float | str,
+    practice_area: str = "all",
+    notes_md: str | None = None,
+) -> Any:
+    """Set (insert or replace) the outside-counsel budget for one quarter.
+    period: 'YYYY-Qn'. practice_area: 'all' (department total) or one of
+    commercial | corporate | employment | ip | litigation | privacy |
+    regulatory | other."""
+    return _request(
+        "PUT",
+        f"{_OC}/budgets",
+        json=_drop_none(
+            {
+                "period": period,
+                "amount": amount,
+                "practice_area": practice_area,
+                "notes_md": notes_md,
+            }
+        ),
+    )
+
+
+@mcp.tool()
+def list_outside_counsel_budgets(year: int | None = None) -> Any:
+    """List outside-counsel budget rows, optionally for one year."""
+    return _request("GET", f"{_OC}/budgets", params={"year": year})
+
+
+@mcp.tool()
+def delete_outside_counsel_budget(budget_id: str) -> Any:
+    """DESTRUCTIVE: delete one budget row (permanent)."""
+    return _request("DELETE", f"{_OC}/budgets/{budget_id}")
+
+
+@mcp.tool()
+def list_invoices(
+    firm_id: str | None = None, period: str | None = None, year: int | None = None
+) -> Any:
+    """List outside-counsel invoices (newest first) with their lines,
+    computed totals and staffing flags. Filters: firm_id, period
+    ('YYYY-Qn'), year."""
+    return _request(
+        "GET", f"{_OC}/invoices", params={"firm_id": firm_id, "period": period, "year": year}
+    )
+
+
+@mcp.tool()
+def create_invoice(
+    firm_id: str,
+    invoice_date: str,
+    practice_area: str,
+    lines: list[dict[str, Any]],
+    invoice_number: str | None = None,
+    matter_ref: str | None = None,
+    status: str = "received",
+    notes_md: str | None = None,
+) -> Any:
+    """Record an invoice line by line. invoice_date 'YYYY-MM-DD' (its
+    quarter becomes the invoice's period). practice_area: commercial |
+    corporate | employment | ip | litigation | privacy | regulatory |
+    other. status: received | paid. Each line is {work_date
+    'YYYY-MM-DD', timekeeper, title (partner | counsel | associate |
+    paralegal | other), task, hours, rate}; the line amount and invoice
+    total are computed by LQ.AI."""
+    return _request(
+        "POST",
+        f"{_OC}/invoices",
+        json=_drop_none(
+            {
+                "firm_id": firm_id,
+                "invoice_date": invoice_date,
+                "practice_area": practice_area,
+                "lines": lines,
+                "invoice_number": invoice_number,
+                "matter_ref": matter_ref,
+                "status": status,
+                "notes_md": notes_md,
+            }
+        ),
+    )
+
+
+@mcp.tool()
+def update_invoice(invoice_id: str, updates: dict[str, Any]) -> Any:
+    """Edit an invoice (partial update). Allowed keys: firm_id,
+    invoice_number, invoice_date, practice_area, matter_ref, status,
+    notes_md, lines. Passing lines REPLACES all of the invoice's lines."""
+    return _request("PATCH", f"{_OC}/invoices/{invoice_id}", json=updates)
+
+
+@mcp.tool()
+def delete_invoice(invoice_id: str) -> Any:
+    """DESTRUCTIVE: remove an invoice from the UI and every total (soft delete)."""
+    return _request("DELETE", f"{_OC}/invoices/{invoice_id}")
+
+
+@mcp.tool()
+def list_value_entries(year: int | None = None, category: str | None = None) -> Any:
+    """List value-ledger entries. category: self_service_savings |
+    billing_adjustments | insourcing_avoidance | settlement_avoidance."""
+    return _request(
+        "GET", f"{_OC}/value-entries", params={"year": year, "category": category}
+    )
+
+
+@mcp.tool()
+def create_value_entry(
+    period: str,
+    category: str,
+    amount: float | str,
+    description: str,
+    method_note: str,
+    source: str,
+    document_id: str | None = None,
+) -> Any:
+    """Add a value-ledger entry ("legal pays for itself"). period
+    'YYYY-Qn'. category: self_service_savings | billing_adjustments |
+    insourcing_avoidance | settlement_avoidance. method_note (how the
+    number was calculated) and source (the record or document it traces
+    to) are REQUIRED — never invent them; ask the user if unknown."""
+    return _request(
+        "POST",
+        f"{_OC}/value-entries",
+        json=_drop_none(
+            {
+                "period": period,
+                "category": category,
+                "amount": amount,
+                "description": description,
+                "method_note": method_note,
+                "source": source,
+                "document_id": document_id,
+            }
+        ),
+    )
+
+
+@mcp.tool()
+def update_value_entry(entry_id: str, updates: dict[str, Any]) -> Any:
+    """Edit a value-ledger entry (partial update). Allowed keys: period,
+    category, amount, description, method_note, source, document_id."""
+    return _request("PATCH", f"{_OC}/value-entries/{entry_id}", json=updates)
+
+
+@mcp.tool()
+def delete_value_entry(entry_id: str) -> Any:
+    """DESTRUCTIVE: remove a value-ledger entry from the UI (soft delete)."""
+    return _request("DELETE", f"{_OC}/value-entries/{entry_id}")
+
+
+# ---------------------------------------------------------------------------
 # Read-only overviews
 # ---------------------------------------------------------------------------
 
@@ -579,8 +859,9 @@ def delete_document(document_id: str) -> Any:
 @mcp.tool()
 def urgent_matters() -> Any:
     """The Urgent Matters triage feed: red (act today) and yellow (act this
-    week) items across commitments, stakeholder cadences, and KPIs —
-    capped at 10, reds first, each with a why and a next step."""
+    week) items across commitments, stakeholder cadences, KPIs and
+    outside counsel — up to 10 reds then up to 5 yellows, each with a
+    why and a next step."""
     return _request("GET", "/management/urgent-matters")
 
 

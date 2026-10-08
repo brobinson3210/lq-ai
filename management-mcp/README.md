@@ -55,3 +55,16 @@ Whether an agent's writes apply immediately or stage for approval is
 deliberately **not decided yet** (owner's call, deferred). The tool
 descriptions already flag destructive operations so MCP clients can
 require confirmation.
+
+## Testing the connector end to end
+
+`./run-tests.sh` runs `tests/test_connector.py` against the live LQ.AI stack
+over real MCP stdio. For every Management module (stakeholders, commitments,
+team, KPIs, documents, outside counsel) it creates a throwaway `ZZ-TEST`
+record, reads it back, updates it and deletes it, cleaning up in a `finally`
+block even when a check fails. It also checks the read-only overviews and the
+safety fence (path-traversal ids, plain or percent-encoded, are refused).
+`--json` prints one machine-readable report; the local helper page
+`mcp-tests.html` (served by the interview server on port 8765) runs it with
+one button. When a new module is added, add a `check_<module>` function to
+`CHECKS` in the same file.
