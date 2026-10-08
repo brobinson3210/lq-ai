@@ -2,7 +2,7 @@
  * /api/v1/management/urgent-matters — the Urgent Matters feed.
  *
  * One read-only endpoint: the server applies the GC's sorting rules
- * (reds then yellows, capped at 10 combined) — the client renders,
+ * (reds then yellows; up to 10 reds and 5 yellows) — the client renders,
  * it never re-ranks.
  */
 import { apiRequest } from './client';

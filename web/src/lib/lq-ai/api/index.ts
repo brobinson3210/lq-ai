@@ -33,3 +33,4 @@ export * as managementKpisApi from './managementKpis';
 export * as managementAiApi from './managementAi';
 export * as managementDocumentsApi from './managementDocuments';
 export * as managementUrgentApi from './managementUrgent';
+export * as managementOutsideCounselApi from './managementOutsideCounsel';

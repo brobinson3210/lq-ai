@@ -1596,7 +1596,7 @@ export interface ChatLedger {
 // ----- Management AI (Management tab) -----
 
 /** Job types on /api/v1/management/ai-jobs — mirrors the api CHECK constraint. */
-export type MgmtAiJobType = 'pre_meeting_brief' | 'review_prep' | 'kpi_draft';
+export type MgmtAiJobType = 'pre_meeting_brief' | 'review_prep' | 'kpi_draft' | 'spend_story';
 
 /** Job lifecycle — poll until 'done' or 'error'. */
 export type MgmtAiJobStatus = 'pending' | 'running' | 'done' | 'error';
@@ -1733,7 +1733,7 @@ export interface MgmtDocument extends MgmtDocumentListRow {
 // --------------------
 
 /** Which source produced an urgent item. */
-export type UrgentKind = 'commitment' | 'cadence' | 'kpi';
+export type UrgentKind = 'commitment' | 'cadence' | 'kpi' | 'outside_counsel';
 
 /**
  * One urgent-matters row. Every item carries the same shape regardless of
@@ -1753,12 +1753,14 @@ export interface UrgentItem {
 	stakeholder_id: string | null;
 	stakeholder_name: string | null;
 	kpi_id: string | null;
+	/** Outside-counsel items about one firm; null otherwise. */
+	firm_id?: string | null;
 	link: string;
 }
 
 /**
  * GET /management/urgent-matters — `red` = act today, `yellow` = the next
- * 5 days. The combined list is capped at 10 items, reds surviving first.
+ * 5 days. Each band is capped independently (up to 10 reds, 5 yellows).
  * The server has already applied the ranking; the client renders in order
  * and never re-sorts.
  */
@@ -1766,4 +1768,230 @@ export interface UrgentMattersResponse {
 	generated_at: string;
 	red: UrgentItem[];
 	yellow: UrgentItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Management tab — Outside Counsel module
+// ---------------------------------------------------------------------------
+// Money and percentages travel as JSON strings (backend Decimals).
+
+export type OcPracticeArea =
+	| 'commercial'
+	| 'corporate'
+	| 'employment'
+	| 'ip'
+	| 'litigation'
+	| 'privacy'
+	| 'regulatory'
+	| 'other';
+export type OcBudgetArea = 'all' | OcPracticeArea;
+export type OcTimekeeperTitle = 'partner' | 'counsel' | 'associate' | 'paralegal' | 'other';
+export type OcPartnerStatus = 'active' | 'left_firm' | 'replaced' | 'followed';
+export type OcInvoiceStatus = 'received' | 'paid';
+export type OcValueCategory =
+	| 'self_service_savings'
+	| 'billing_adjustments'
+	| 'insourcing_avoidance'
+	| 'settlement_avoidance';
+export type OcBand = 'green' | 'yellow' | 'red';
+
+export interface OcPartner {
+	id: string;
+	firm_id: string;
+	stakeholder_id: string | null;
+	name: string;
+	practice_area: OcPracticeArea | null;
+	status: OcPartnerStatus;
+	left_at: string | null;
+	resolution_note: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OcPartnerCreate {
+	name: string;
+	stakeholder_id?: string | null;
+	practice_area?: OcPracticeArea | null;
+}
+
+export type OcPartnerUpdate = Partial<OcPartnerCreate> & {
+	status?: OcPartnerStatus;
+	left_at?: string | null;
+	resolution_note?: string | null;
+};
+
+export interface OcFirm {
+	id: string;
+	owner_id: string;
+	name: string;
+	discount_pct: string | null;
+	rate_increase_pct: string | null;
+	rate_year: number | null;
+	notes_md: string | null;
+	created_at: string;
+	updated_at: string;
+	partners: OcPartner[];
+	below_discount_floor: boolean;
+	above_increase_cap: boolean;
+	spend_total: string;
+	invoice_count: number;
+}
+
+export interface OcFirmCreate {
+	name: string;
+	discount_pct?: string | null;
+	rate_increase_pct?: string | null;
+	rate_year?: number | null;
+	notes_md?: string | null;
+}
+
+export type OcFirmUpdate = Partial<OcFirmCreate>;
+
+export interface OcBudget {
+	id: string;
+	period: string;
+	practice_area: OcBudgetArea;
+	amount: string;
+	notes_md: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OcBudgetUpsert {
+	period: string;
+	practice_area?: OcBudgetArea;
+	amount: string;
+	notes_md?: string | null;
+}
+
+export interface OcInvoiceLineIn {
+	work_date: string;
+	timekeeper: string;
+	title: OcTimekeeperTitle;
+	task: string;
+	hours: string;
+	rate: string;
+}
+
+export interface OcInvoiceLine extends OcInvoiceLineIn {
+	id: string;
+	amount: string;
+}
+
+export interface OcStaffingFlag {
+	invoice_id: string;
+	invoice_number: string | null;
+	firm_id: string;
+	firm_name: string;
+	work_date: string;
+	task: string;
+	timekeepers: string[];
+	amount: string;
+}
+
+export interface OcInvoice {
+	id: string;
+	firm_id: string;
+	firm_name: string;
+	invoice_number: string | null;
+	invoice_date: string;
+	period: string;
+	practice_area: OcPracticeArea;
+	matter_ref: string | null;
+	status: OcInvoiceStatus;
+	notes_md: string | null;
+	total: string;
+	line_count: number;
+	lines: OcInvoiceLine[];
+	staffing_flags: OcStaffingFlag[];
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OcInvoiceCreate {
+	firm_id: string;
+	invoice_number?: string | null;
+	invoice_date: string;
+	practice_area: OcPracticeArea;
+	matter_ref?: string | null;
+	status?: OcInvoiceStatus;
+	notes_md?: string | null;
+	lines: OcInvoiceLineIn[];
+}
+
+export type OcInvoiceUpdate = Partial<OcInvoiceCreate>;
+
+export interface OcValueEntry {
+	id: string;
+	period: string;
+	category: OcValueCategory;
+	amount: string;
+	description: string;
+	method_note: string;
+	source: string;
+	document_id: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OcValueEntryCreate {
+	period: string;
+	category: OcValueCategory;
+	amount: string;
+	description: string;
+	method_note: string;
+	source: string;
+	document_id?: string | null;
+}
+
+export type OcValueEntryUpdate = Partial<OcValueEntryCreate>;
+
+export interface OcQuarterRow {
+	period: string;
+	budget: string | null;
+	actual: string;
+	pct_of_budget: string | null;
+	band: OcBand | null;
+}
+
+export interface OcAmountRow {
+	key: string;
+	label: string;
+	amount: string;
+	budget: string | null;
+	count: number;
+}
+
+export interface OcRateFlag {
+	firm_id: string;
+	firm_name: string;
+	issue: 'discount_below_floor' | 'increase_above_cap';
+	value: string;
+	band: OcBand;
+}
+
+export interface OcPartnerAlert {
+	partner_id: string;
+	partner_name: string;
+	firm_id: string;
+	firm_name: string;
+	left_at: string | null;
+}
+
+export interface OcSummary {
+	year: number;
+	min_discount_pct: string;
+	max_rate_increase_pct: string;
+	max_billers_per_task: number;
+	quarters: OcQuarterRow[];
+	year_budget: string | null;
+	year_actual: string;
+	year_pct_of_budget: string | null;
+	by_firm: OcAmountRow[];
+	by_practice_area: OcAmountRow[];
+	staffing_flags: OcStaffingFlag[];
+	rate_flags: OcRateFlag[];
+	partner_alerts: OcPartnerAlert[];
+	value_total: string;
+	value_by_category: OcAmountRow[];
 }

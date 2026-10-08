@@ -169,15 +169,15 @@ export const MANAGEMENT_MODULES: readonly ManagementModule[] = [
 		label: 'Outside Counsel',
 		icon: '📈',
 		zone: 'operations',
-		status: 'roadmap',
-		route: '/lq-ai/management/roadmap/spend-value',
-		tagline: 'Trackable spend — by quarter, by year, by firm. Next up for production.',
+		status: 'production',
+		route: '/lq-ai/management/outside-counsel',
+		tagline: 'Trackable spend — by quarter, by year, by firm.',
 		trustFrame:
 			'"I hire lawyers, not law firms." Managing spend is not penny-pinching — it is proof to the business that legal treats company money like its own.',
 		whatItManages:
 			'Outside-counsel spend analytics, invoice review against billing guidelines, rate benchmarking, and a value ledger — savings, recoveries, avoided cost — the "legal pays for itself" story.',
 		aiAngle:
-			'Invoice upload → extraction to actuals; guideline-compliance flags on bills; the value story assembled in the CFO’s language.'
+			'The value story assembled in the CFO’s language, every figure cited; staffing flags on line-item bills. Coming next: invoice upload → extraction to actuals.'
 	},
 	{
 		id: 'matter-portfolio',
