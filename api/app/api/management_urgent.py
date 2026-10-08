@@ -69,6 +69,15 @@ in the next 5 days" and must not go dark just because the reds are
 busy (Bill's decision 2026-07-30, superseding the round-3 combined
 cap).
 
+**Reserved slots per source.** Within a band, one busy source must not
+hide the others (Bill's decision 2026-10-08, after ten overdue
+commitments hid every outside-counsel red). Each source present in a
+band is guaranteed its top ``min(2, cap // sources_present)`` items
+(at least 1) — so 2 each in the red band, 1 each in the 5-slot yellow
+band when all four sources are present — and the remaining slots go
+to the highest-ranked items overall. The chosen items keep the band's
+normal ranking order.
+
 **Per-user isolation.** Owner-scoped exactly as the sibling Management
 modules: every query filters on ``owner_id``; soft-deleted rows never
 contribute. Read-only — no audit rows. A fixed handful of batched
@@ -126,6 +135,8 @@ _KPI_YELLOW_BAND_PCT = Decimal(80)
 # full red band never squeezes the yellow band out of existence.
 _MAX_RED_ITEMS = 10
 _MAX_YELLOW_ITEMS = 5
+# Guaranteed slots per source within a band — see "Reserved slots".
+_RESERVED_PER_SOURCE = 2
 _TITLE_MAX_LEN = 80
 
 _REGULATORY_TYPES = ("regulator", "auditor")
@@ -210,6 +221,30 @@ def _commitment_item(
     )
 
 
+def _cap_with_reserved_slots(ranked: list[_Ranked], cap: int) -> list[UrgentItem]:
+    """Apply a band's cap without letting one source crowd out the rest.
+
+    ``ranked`` must already be sorted. Each source (``kind``) present is
+    guaranteed its top ``min(_RESERVED_PER_SOURCE, cap // sources)``
+    items (at least 1); leftover slots go to the best-ranked remainder.
+    Output keeps the ranked order.
+    """
+
+    if not ranked:
+        return []
+    kinds = list(dict.fromkeys(item.kind for _, item in ranked))
+    per_source = max(1, min(_RESERVED_PER_SOURCE, cap // len(kinds)))
+    chosen: set[int] = set()
+    for kind in kinds:
+        positions = [i for i, (_, item) in enumerate(ranked) if item.kind == kind]
+        chosen.update(positions[:per_source])
+    for i in range(len(ranked)):
+        if len(chosen) >= cap:
+            break
+        chosen.add(i)
+    return [ranked[i][1] for i in sorted(chosen)[:cap]]
+
+
 def _oc_item(
     *,
     title: str,
@@ -275,7 +310,9 @@ def _classify_commitment(stakeholder_type: str, days_until_due: int) -> str | No
         "due in the next 5 days, regulator items 8-14 days out, cadence "
         "breaches, and below-green KPIs are yellow). Each band is capped "
         "independently: up to 10 reds and up to 5 yellows, so a full red "
-        "band never starves the yellow one. Documents "
+        "band never starves the yellow one, and each source keeps "
+        "reserved slots inside a band (2 each in red; at least 1 each in "
+        "yellow) so one busy source cannot hide the others. Documents "
         "scanning is out of scope (later MCP work)."
     ),
 )
@@ -491,9 +528,10 @@ async def get_urgent_matters(
     red.sort(key=lambda r: r[0])
     yellow.sort(key=lambda r: r[0])
 
-    # Cap each band independently so a full red band cannot starve yellow.
-    red_items = [item for _, item in red[:_MAX_RED_ITEMS]]
-    yellow_items = [item for _, item in yellow[:_MAX_YELLOW_ITEMS]]
+    # Cap each band independently so a full red band cannot starve
+    # yellow, reserving slots per source inside each band.
+    red_items = _cap_with_reserved_slots(red, _MAX_RED_ITEMS)
+    yellow_items = _cap_with_reserved_slots(yellow, _MAX_YELLOW_ITEMS)
 
     log.info(
         "urgent matters computed",

@@ -681,3 +681,70 @@ async def test_urgent_outside_counsel_ranks_after_commitment_reds(
     await _firm(client, user_a, name="Cheap Firm", discount_pct="5")
     body = await _urgent(client, user_a)
     assert [i["kind"] for i in body["red"]] == ["commitment", "outside_counsel"]
+
+
+@pytest.mark.integration
+async def test_urgent_reserved_slots_keep_outside_counsel_visible(
+    client: AsyncClient, db_session: AsyncSession, user_a: User
+) -> None:
+    """Twelve overdue commitments must not hide the outside-counsel reds."""
+
+    from app.models import StakeholderCommitment, StakeholderInteraction
+
+    today = datetime.now(tz=UTC).date()
+    chair = Stakeholder(owner_id=user_a.id, full_name="Margo Chair", stakeholder_type="board_chair")
+    db_session.add(chair)
+    await db_session.flush()
+    for n in range(12):
+        db_session.add(
+            StakeholderCommitment(
+                stakeholder_id=chair.id,
+                direction="we_owe",
+                description=f"Overdue item {n:02d}",
+                due_date=today - timedelta(days=30 + n),
+                status="open",
+            )
+        )
+    # Six cadence breaches to crowd the 5-slot yellow band.
+    for n in range(6):
+        s = Stakeholder(
+            owner_id=user_a.id,
+            full_name=f"Director {n}",
+            stakeholder_type="director",
+            cadence_target_days=7,
+        )
+        db_session.add(s)
+        await db_session.flush()
+        db_session.add(
+            StakeholderInteraction(
+                stakeholder_id=s.id,
+                occurred_at=datetime.now(tz=UTC) - timedelta(days=40 + n),
+                channel="call",
+                summary_md="Catch-up",
+            )
+        )
+    await db_session.flush()
+
+    headers = _bearer(user_a)
+    await _firm(client, user_a, name="Cheap Firm", discount_pct="5")
+    await _firm(client, user_a, name="Pricey Firm", rate_increase_pct="9")
+    firm = await _firm(client, user_a, name="Barrow Finch LLP")
+    resp = await client.post(
+        f"{BASE}/firms/{firm['id']}/partners", headers=headers, json={"name": "Dana Okafor"}
+    )
+    await client.patch(
+        f"{BASE}/partners/{resp.json()['id']}", headers=headers, json={"status": "left_firm"}
+    )
+
+    body = await _urgent(client, user_a)
+    red_kinds = [i["kind"] for i in body["red"]]
+    assert len(body["red"]) == 10
+    # Two reserved outside-counsel slots; the eight most-overdue
+    # commitments fill the rest, and ranking order is kept.
+    assert red_kinds == ["commitment"] * 8 + ["outside_counsel"] * 2
+    assert body["red"][0]["title"] == "Deliver: Overdue item 11"
+
+    yellow_kinds = [i["kind"] for i in body["yellow"]]
+    assert len(body["yellow"]) == 5
+    assert yellow_kinds.count("outside_counsel") == 1
+    assert yellow_kinds[-1] == "outside_counsel"

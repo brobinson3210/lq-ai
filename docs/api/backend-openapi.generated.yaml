@@ -8545,7 +8545,11 @@ components:
 
         ``red`` = act today; ``yellow`` = act this week. Each band is
 
-        capped independently — up to 10 reds and up to 5 yellows. Ordering
+        capped independently — up to 10 reds and up to 5 yellows — and each
+
+        source keeps reserved slots inside a band (2 each in red; at least 1
+
+        each in yellow), so one busy source cannot hide the others. Ordering
 
         encodes the triage judgment: reds by ``days_until_due`` ascending
 
@@ -15436,8 +15440,10 @@ paths:
         and regulator/board-chair/CEO commitments inside a week are red; other commitments
         due in the next 5 days, regulator items 8-14 days out, cadence breaches, and
         below-green KPIs are yellow). Each band is capped independently: up to 10
-        reds and up to 5 yellows, so a full red band never starves the yellow one.
-        Documents scanning is out of scope (later MCP work).'
+        reds and up to 5 yellows, so a full red band never starves the yellow one,
+        and each source keeps reserved slots inside a band (2 each in red; at least
+        1 each in yellow) so one busy source cannot hide the others. Documents scanning
+        is out of scope (later MCP work).'
       operationId: get_urgent_matters_api_v1_management_urgent_matters_get
       responses:
         '200':

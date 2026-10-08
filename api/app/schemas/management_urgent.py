@@ -61,7 +61,9 @@ class UrgentMattersRead(BaseModel):
     """``GET /api/v1/management/urgent-matters`` response.
 
     ``red`` = act today; ``yellow`` = act this week. Each band is
-    capped independently — up to 10 reds and up to 5 yellows. Ordering
+    capped independently — up to 10 reds and up to 5 yellows — and each
+    source keeps reserved slots inside a band (2 each in red; at least 1
+    each in yellow), so one busy source cannot hide the others. Ordering
     encodes the triage judgment: reds by ``days_until_due`` ascending
     (most-overdue first, then soonest due), then outside-counsel reds;
     yellows as commitments (by due date), then cadence breaches

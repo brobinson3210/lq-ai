@@ -6504,7 +6504,9 @@ paths:
         then yellows — commitments by due date, cadence breaches by
         days-over, KPIs by attainment ascending. Each band is capped
         independently: up to 10 reds and up to 5 yellows, so a full red
-        band never starves the yellow one.
+        band never starves the yellow one. Inside a band each source
+        keeps reserved slots (2 each in red; at least 1 each in yellow),
+        so one busy source cannot hide the others.
         Owner-scoped. Documents scanning is out of scope (later MCP
         work).
       security:
