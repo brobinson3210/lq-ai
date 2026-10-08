@@ -33,6 +33,14 @@ from app.models.knowledge import KnowledgeBase, KnowledgeBaseFile
 from app.models.management_ai import MgmtAiJob
 from app.models.management_document import MgmtDocument
 from app.models.management_kpi import MgmtKpi, MgmtKpiDatapoint, MgmtTeamMember
+from app.models.management_outside_counsel import (
+    MgmtOcBudget,
+    MgmtOcFirm,
+    MgmtOcFirmPartner,
+    MgmtOcInvoice,
+    MgmtOcInvoiceLine,
+    MgmtOcValueEntry,
+)
 from app.models.mcp import MCPToolCache
 from app.models.mcp_oauth import MCPOAuthState, MCPOAuthToken
 from app.models.message_authority_citation import MessageAuthorityCitation
@@ -93,6 +101,12 @@ __all__ = [
     "MgmtDocument",
     "MgmtKpi",
     "MgmtKpiDatapoint",
+    "MgmtOcBudget",
+    "MgmtOcFirm",
+    "MgmtOcFirmPartner",
+    "MgmtOcInvoice",
+    "MgmtOcInvoiceLine",
+    "MgmtOcValueEntry",
     "MgmtTeamMember",
     "OrganizationProfile",
     "Playbook",

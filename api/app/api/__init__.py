@@ -42,6 +42,7 @@ from app.api import (
     management_ai,
     management_documents,
     management_kpis,
+    management_outside_counsel,
     management_urgent,
     mcp_oauth,
     models,
@@ -136,6 +137,11 @@ api_router.include_router(management_ai.router, dependencies=_active)
 # KPIs. Fourth router sharing the /management URL prefix. Computed and
 # read-only (no tables, no audit rows); owner-scoped like its siblings.
 api_router.include_router(management_urgent.router, dependencies=_active)
+# Management tab — Outside Counsel module: firms + chosen partners,
+# quarterly budgets, line-item invoices, the value ledger and the
+# /management/outside-counsel/summary dashboard. Owner-scoped
+# (cross-user access = 404), every mutation audited.
+api_router.include_router(management_outside_counsel.router, dependencies=_active)
 api_router.include_router(user_skills.router, dependencies=_active)
 api_router.include_router(teams.user_router, dependencies=_active)
 api_router.include_router(teams.admin_router, dependencies=_active)

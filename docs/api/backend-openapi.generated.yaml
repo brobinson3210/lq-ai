@@ -3260,7 +3260,9 @@ components:
         \ by ``job_type`` (enforced in the handler):\n\n* ``pre_meeting_brief`` —\
         \ ``stakeholder_id`` required, no\n  ``team_member_id``.\n* ``review_prep``\
         \ — ``team_member_id`` required, no\n  ``stakeholder_id``.\n* ``kpi_draft``\
-        \ — no subject; ``answers`` required and non-empty."
+        \ — no subject; ``answers`` required and non-empty.\n* ``spend_story`` — no\
+        \ subject, no answers; drafts the CFO-language\n  outside-counsel memo for\
+        \ the current year."
       properties:
         answers:
           anyOf:
@@ -3274,6 +3276,7 @@ components:
           - pre_meeting_brief
           - review_prep
           - kpi_draft
+          - spend_story
           title: Job Type
           type: string
         stakeholder_id:
@@ -3319,6 +3322,7 @@ components:
           - pre_meeting_brief
           - review_prep
           - kpi_draft
+          - spend_story
           title: Job Type
           type: string
         result_json:
@@ -3392,6 +3396,7 @@ components:
           - pre_meeting_brief
           - review_prep
           - kpi_draft
+          - spend_story
           title: Job Type
           type: string
         params:
@@ -4161,6 +4166,1095 @@ components:
       required:
       - questions
       title: MgmtKpiWizardQuestionsRead
+      type: object
+    MgmtOcAmountRow:
+      properties:
+        amount:
+          title: Amount
+          type: string
+        budget:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Budget
+        count:
+          default: 0
+          title: Count
+          type: integer
+        key:
+          title: Key
+          type: string
+        label:
+          title: Label
+          type: string
+      required:
+      - key
+      - label
+      - amount
+      title: MgmtOcAmountRow
+      type: object
+    MgmtOcBudgetRead:
+      properties:
+        amount:
+          title: Amount
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        period:
+          title: Period
+          type: string
+        practice_area:
+          title: Practice Area
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - period
+      - practice_area
+      - amount
+      - created_at
+      - updated_at
+      title: MgmtOcBudgetRead
+      type: object
+    MgmtOcBudgetUpsert:
+      additionalProperties: false
+      description: '``PUT /management/outside-counsel/budgets`` body — insert or replace.
+
+
+        One row per (period, practice_area); ``practice_area=''all''`` is the
+
+        department-total line.'
+      properties:
+        amount:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Amount
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        period:
+          pattern: ^\d{4}-Q[1-4]$
+          title: Period
+          type: string
+        practice_area:
+          default: all
+          enum:
+          - all
+          - commercial
+          - corporate
+          - employment
+          - ip
+          - litigation
+          - privacy
+          - regulatory
+          - other
+          title: Practice Area
+          type: string
+      required:
+      - period
+      - amount
+      title: MgmtOcBudgetUpsert
+      type: object
+    MgmtOcFirmCreate:
+      additionalProperties: false
+      description: '``POST /management/outside-counsel/firms`` body.'
+      properties:
+        discount_pct:
+          anyOf:
+          - maximum: 100.0
+            minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Discount Pct
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        rate_increase_pct:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Rate Increase Pct
+        rate_year:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rate Year
+      required:
+      - name
+      title: MgmtOcFirmCreate
+      type: object
+    MgmtOcFirmRead:
+      description: 'Firm wire shape — row columns, chosen partners, and computed flags.
+
+
+        * ``below_discount_floor`` — ``discount_pct`` under the 10% minimum.
+
+        * ``above_increase_cap`` — ``rate_increase_pct`` over the 5% cap.
+
+        * ``spend_total`` / ``invoice_count`` — across all active invoices.'
+      properties:
+        above_increase_cap:
+          default: false
+          title: Above Increase Cap
+          type: boolean
+        below_discount_floor:
+          default: false
+          title: Below Discount Floor
+          type: boolean
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        discount_pct:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Discount Pct
+        id:
+          format: uuid
+          title: Id
+          type: string
+        invoice_count:
+          default: 0
+          title: Invoice Count
+          type: integer
+        name:
+          title: Name
+          type: string
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        owner_id:
+          format: uuid
+          title: Owner Id
+          type: string
+        partners:
+          default: []
+          items:
+            $ref: '#/components/schemas/MgmtOcPartnerRead'
+          title: Partners
+          type: array
+        rate_increase_pct:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rate Increase Pct
+        rate_year:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rate Year
+        spend_total:
+          default: '0'
+          title: Spend Total
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - owner_id
+      - name
+      - created_at
+      - updated_at
+      title: MgmtOcFirmRead
+      type: object
+    MgmtOcFirmUpdate:
+      additionalProperties: false
+      description: '``PATCH /management/outside-counsel/firms/{id}`` body — all optional.'
+      properties:
+        discount_pct:
+          anyOf:
+          - maximum: 100.0
+            minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Discount Pct
+        name:
+          anyOf:
+          - maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Name
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        rate_increase_pct:
+          anyOf:
+          - type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Rate Increase Pct
+        rate_year:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rate Year
+      title: MgmtOcFirmUpdate
+      type: object
+    MgmtOcInvoiceCreate:
+      additionalProperties: false
+      description: '``POST /management/outside-counsel/invoices`` body (line by line).'
+      properties:
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        invoice_date:
+          format: date
+          title: Invoice Date
+          type: string
+        invoice_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice Number
+        lines:
+          items:
+            $ref: '#/components/schemas/MgmtOcInvoiceLineIn'
+          minItems: 1
+          title: Lines
+          type: array
+        matter_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Matter Ref
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        practice_area:
+          enum:
+          - commercial
+          - corporate
+          - employment
+          - ip
+          - litigation
+          - privacy
+          - regulatory
+          - other
+          title: Practice Area
+          type: string
+        status:
+          default: received
+          enum:
+          - received
+          - paid
+          title: Status
+          type: string
+      required:
+      - firm_id
+      - invoice_date
+      - practice_area
+      - lines
+      title: MgmtOcInvoiceCreate
+      type: object
+    MgmtOcInvoiceLineIn:
+      additionalProperties: false
+      description: One time entry. ``amount`` is computed (hours x rate), never sent.
+      properties:
+        hours:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Hours
+        rate:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Rate
+        task:
+          minLength: 1
+          title: Task
+          type: string
+        timekeeper:
+          maxLength: 200
+          minLength: 1
+          title: Timekeeper
+          type: string
+        title:
+          enum:
+          - partner
+          - counsel
+          - associate
+          - paralegal
+          - other
+          title: Title
+          type: string
+        work_date:
+          format: date
+          title: Work Date
+          type: string
+      required:
+      - work_date
+      - timekeeper
+      - title
+      - task
+      - hours
+      - rate
+      title: MgmtOcInvoiceLineIn
+      type: object
+    MgmtOcInvoiceLineRead:
+      properties:
+        amount:
+          title: Amount
+          type: string
+        hours:
+          title: Hours
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        rate:
+          title: Rate
+          type: string
+        task:
+          title: Task
+          type: string
+        timekeeper:
+          title: Timekeeper
+          type: string
+        title:
+          title: Title
+          type: string
+        work_date:
+          format: date
+          title: Work Date
+          type: string
+      required:
+      - id
+      - work_date
+      - timekeeper
+      - title
+      - task
+      - hours
+      - rate
+      - amount
+      title: MgmtOcInvoiceLineRead
+      type: object
+    MgmtOcInvoiceRead:
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        firm_name:
+          title: Firm Name
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        invoice_date:
+          format: date
+          title: Invoice Date
+          type: string
+        invoice_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice Number
+        line_count:
+          title: Line Count
+          type: integer
+        lines:
+          default: []
+          items:
+            $ref: '#/components/schemas/MgmtOcInvoiceLineRead'
+          title: Lines
+          type: array
+        matter_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Matter Ref
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        period:
+          title: Period
+          type: string
+        practice_area:
+          title: Practice Area
+          type: string
+        staffing_flags:
+          default: []
+          items:
+            $ref: '#/components/schemas/MgmtOcStaffingFlag'
+          title: Staffing Flags
+          type: array
+        status:
+          title: Status
+          type: string
+        total:
+          title: Total
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - firm_id
+      - firm_name
+      - invoice_date
+      - period
+      - practice_area
+      - status
+      - total
+      - line_count
+      - created_at
+      - updated_at
+      title: MgmtOcInvoiceRead
+      type: object
+    MgmtOcInvoiceUpdate:
+      additionalProperties: false
+      description: '``PATCH /management/outside-counsel/invoices/{id}`` body.
+
+
+        ``lines``, when present, REPLACES the invoice''s lines wholesale.'
+      properties:
+        firm_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Firm Id
+        invoice_date:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Invoice Date
+        invoice_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice Number
+        lines:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MgmtOcInvoiceLineIn'
+            minItems: 1
+            type: array
+          - type: 'null'
+          title: Lines
+        matter_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Matter Ref
+        notes_md:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes Md
+        practice_area:
+          anyOf:
+          - enum:
+            - commercial
+            - corporate
+            - employment
+            - ip
+            - litigation
+            - privacy
+            - regulatory
+            - other
+            type: string
+          - type: 'null'
+          title: Practice Area
+        status:
+          anyOf:
+          - enum:
+            - received
+            - paid
+            type: string
+          - type: 'null'
+          title: Status
+      title: MgmtOcInvoiceUpdate
+      type: object
+    MgmtOcPartnerAlert:
+      properties:
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        firm_name:
+          title: Firm Name
+          type: string
+        left_at:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Left At
+        partner_id:
+          format: uuid
+          title: Partner Id
+          type: string
+        partner_name:
+          title: Partner Name
+          type: string
+      required:
+      - partner_id
+      - partner_name
+      - firm_id
+      - firm_name
+      title: MgmtOcPartnerAlert
+      type: object
+    MgmtOcPartnerCreate:
+      additionalProperties: false
+      description: '``POST /management/outside-counsel/firms/{firm_id}/partners``
+        body.'
+      properties:
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        practice_area:
+          anyOf:
+          - enum:
+            - commercial
+            - corporate
+            - employment
+            - ip
+            - litigation
+            - privacy
+            - regulatory
+            - other
+            type: string
+          - type: 'null'
+          title: Practice Area
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+      required:
+      - name
+      title: MgmtOcPartnerCreate
+      type: object
+    MgmtOcPartnerRead:
+      properties:
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        id:
+          format: uuid
+          title: Id
+          type: string
+        left_at:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Left At
+        name:
+          title: Name
+          type: string
+        practice_area:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Practice Area
+        resolution_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Note
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        status:
+          title: Status
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - firm_id
+      - name
+      - status
+      - created_at
+      - updated_at
+      title: MgmtOcPartnerRead
+      type: object
+    MgmtOcPartnerUpdate:
+      additionalProperties: false
+      description: '``PATCH /management/outside-counsel/partners/{id}`` body.
+
+
+        Marking a partner as gone: ``status=''left_firm''`` (``left_at``
+
+        defaults to today). Resolving the alert: ``status=''replaced''`` or
+
+        ``''followed''``, ideally with a ``resolution_note``.'
+      properties:
+        left_at:
+          anyOf:
+          - format: date
+            type: string
+          - type: 'null'
+          title: Left At
+        name:
+          anyOf:
+          - maxLength: 200
+            minLength: 1
+            type: string
+          - type: 'null'
+          title: Name
+        practice_area:
+          anyOf:
+          - enum:
+            - commercial
+            - corporate
+            - employment
+            - ip
+            - litigation
+            - privacy
+            - regulatory
+            - other
+            type: string
+          - type: 'null'
+          title: Practice Area
+        resolution_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Note
+        stakeholder_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Stakeholder Id
+        status:
+          anyOf:
+          - enum:
+            - active
+            - left_firm
+            - replaced
+            - followed
+            type: string
+          - type: 'null'
+          title: Status
+      title: MgmtOcPartnerUpdate
+      type: object
+    MgmtOcQuarterRow:
+      description: Budget vs actual for one quarter. ``pct_of_budget`` null = no budget.
+      properties:
+        actual:
+          title: Actual
+          type: string
+        band:
+          anyOf:
+          - enum:
+            - green
+            - yellow
+            - red
+            type: string
+          - type: 'null'
+          title: Band
+        budget:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Budget
+        pct_of_budget:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pct Of Budget
+        period:
+          title: Period
+          type: string
+      required:
+      - period
+      - actual
+      title: MgmtOcQuarterRow
+      type: object
+    MgmtOcRateFlag:
+      properties:
+        band:
+          enum:
+          - green
+          - yellow
+          - red
+          title: Band
+          type: string
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        firm_name:
+          title: Firm Name
+          type: string
+        issue:
+          enum:
+          - discount_below_floor
+          - increase_above_cap
+          title: Issue
+          type: string
+        value:
+          title: Value
+          type: string
+      required:
+      - firm_id
+      - firm_name
+      - issue
+      - value
+      - band
+      title: MgmtOcRateFlag
+      type: object
+    MgmtOcStaffingFlag:
+      description: More than the allowed number of people billed one task on one day.
+      properties:
+        amount:
+          title: Amount
+          type: string
+        firm_id:
+          format: uuid
+          title: Firm Id
+          type: string
+        firm_name:
+          title: Firm Name
+          type: string
+        invoice_id:
+          format: uuid
+          title: Invoice Id
+          type: string
+        invoice_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invoice Number
+        task:
+          title: Task
+          type: string
+        timekeepers:
+          items:
+            type: string
+          title: Timekeepers
+          type: array
+        work_date:
+          format: date
+          title: Work Date
+          type: string
+      required:
+      - invoice_id
+      - firm_id
+      - firm_name
+      - work_date
+      - task
+      - timekeepers
+      - amount
+      title: MgmtOcStaffingFlag
+      type: object
+    MgmtOcSummaryRead:
+      description: '``GET /management/outside-counsel/summary`` — the module dashboard.'
+      properties:
+        by_firm:
+          items:
+            $ref: '#/components/schemas/MgmtOcAmountRow'
+          title: By Firm
+          type: array
+        by_practice_area:
+          items:
+            $ref: '#/components/schemas/MgmtOcAmountRow'
+          title: By Practice Area
+          type: array
+        max_billers_per_task:
+          title: Max Billers Per Task
+          type: integer
+        max_rate_increase_pct:
+          title: Max Rate Increase Pct
+          type: string
+        min_discount_pct:
+          title: Min Discount Pct
+          type: string
+        partner_alerts:
+          items:
+            $ref: '#/components/schemas/MgmtOcPartnerAlert'
+          title: Partner Alerts
+          type: array
+        quarters:
+          items:
+            $ref: '#/components/schemas/MgmtOcQuarterRow'
+          title: Quarters
+          type: array
+        rate_flags:
+          items:
+            $ref: '#/components/schemas/MgmtOcRateFlag'
+          title: Rate Flags
+          type: array
+        staffing_flags:
+          items:
+            $ref: '#/components/schemas/MgmtOcStaffingFlag'
+          title: Staffing Flags
+          type: array
+        value_by_category:
+          items:
+            $ref: '#/components/schemas/MgmtOcAmountRow'
+          title: Value By Category
+          type: array
+        value_total:
+          title: Value Total
+          type: string
+        year:
+          title: Year
+          type: integer
+        year_actual:
+          title: Year Actual
+          type: string
+        year_budget:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Year Budget
+        year_pct_of_budget:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Year Pct Of Budget
+      required:
+      - year
+      - min_discount_pct
+      - max_rate_increase_pct
+      - max_billers_per_task
+      - quarters
+      - year_actual
+      - by_firm
+      - by_practice_area
+      - staffing_flags
+      - rate_flags
+      - partner_alerts
+      - value_total
+      - value_by_category
+      title: MgmtOcSummaryRead
+      type: object
+    MgmtOcValueEntryCreate:
+      additionalProperties: false
+      description: '``POST /management/outside-counsel/value-entries`` body.
+
+
+        ``method_note`` (how the number was calculated) and ``source`` (the
+
+        record or document it traces to) are mandatory — nothing reaches the
+
+        board without its receipt.'
+      properties:
+        amount:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          title: Amount
+        category:
+          enum:
+          - self_service_savings
+          - billing_adjustments
+          - insourcing_avoidance
+          - settlement_avoidance
+          title: Category
+          type: string
+        description:
+          minLength: 1
+          title: Description
+          type: string
+        document_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Document Id
+        method_note:
+          minLength: 1
+          title: Method Note
+          type: string
+        period:
+          pattern: ^\d{4}-Q[1-4]$
+          title: Period
+          type: string
+        source:
+          minLength: 1
+          title: Source
+          type: string
+      required:
+      - period
+      - category
+      - amount
+      - description
+      - method_note
+      - source
+      title: MgmtOcValueEntryCreate
+      type: object
+    MgmtOcValueEntryRead:
+      properties:
+        amount:
+          title: Amount
+          type: string
+        category:
+          title: Category
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        description:
+          title: Description
+          type: string
+        document_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Document Id
+        id:
+          format: uuid
+          title: Id
+          type: string
+        method_note:
+          title: Method Note
+          type: string
+        period:
+          title: Period
+          type: string
+        source:
+          title: Source
+          type: string
+        updated_at:
+          format: date-time
+          title: Updated At
+          type: string
+      required:
+      - id
+      - period
+      - category
+      - amount
+      - description
+      - method_note
+      - source
+      - created_at
+      - updated_at
+      title: MgmtOcValueEntryRead
+      type: object
+    MgmtOcValueEntryUpdate:
+      additionalProperties: false
+      properties:
+        amount:
+          anyOf:
+          - minimum: 0.0
+            type: number
+          - pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            type: string
+          - type: 'null'
+          title: Amount
+        category:
+          anyOf:
+          - enum:
+            - self_service_savings
+            - billing_adjustments
+            - insourcing_avoidance
+            - settlement_avoidance
+            type: string
+          - type: 'null'
+          title: Category
+        description:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Description
+        document_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Document Id
+        method_note:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Method Note
+        period:
+          anyOf:
+          - pattern: ^\d{4}-Q[1-4]$
+            type: string
+          - type: 'null'
+          title: Period
+        source:
+          anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+          title: Source
+      title: MgmtOcValueEntryUpdate
       type: object
     MgmtTeamMemberCreate:
       additionalProperties: false
@@ -7379,7 +8473,9 @@ components:
         \ line derived from ``kind``.\n* ``days_until_due`` — negative means overdue.\
         \ Null for cadence and\n  KPI items (no due date).\n* ``link`` — frontend\
         \ route: commitments and cadence breaches point\n  at the stakeholder dossier,\
-        \ KPI items at the KPI detail page."
+        \ KPI items at the KPI detail page,\n  outside-counsel items at the Outside\
+        \ Counsel module.\n* ``firm_id`` — set on outside-counsel items about one\
+        \ firm."
       properties:
         days_until_due:
           anyOf:
@@ -7392,11 +8488,18 @@ components:
             type: string
           - type: 'null'
           title: Due Date
+        firm_id:
+          anyOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+          title: Firm Id
         kind:
           enum:
           - commitment
           - cadence
           - kpi
+          - outside_counsel
           title: Kind
           type: string
         kpi_id:
@@ -7440,17 +8543,19 @@ components:
       description: '``GET /api/v1/management/urgent-matters`` response.
 
 
-        ``red`` = act today; ``yellow`` = act this week. The combined list
+        ``red`` = act today; ``yellow`` = act this week. Each band is
 
-        is capped at 10 items, reds surviving the cap first. Ordering
+        capped independently — up to 10 reds and up to 5 yellows. Ordering
 
         encodes the triage judgment: reds by ``days_until_due`` ascending
 
-        (most-overdue first, then soonest due); yellows as commitments (by
+        (most-overdue first, then soonest due), then outside-counsel reds;
 
-        due date), then cadence breaches (largest gap first), then KPIs
+        yellows as commitments (by due date), then cadence breaches
 
-        (worst attainment first).'
+        (largest gap first), then KPIs (worst attainment first), then
+
+        outside-counsel yellows.'
       properties:
         generated_at:
           format: date-time
@@ -13511,6 +14616,676 @@ paths:
       summary: Chart feed for one KPI (definition + ordered datapoints)
       tags:
       - management-kpis
+  /api/v1/management/outside-counsel/budgets:
+    get:
+      operationId: list_budgets_api_v1_management_outside_counsel_budgets_get
+      parameters:
+      - description: Filter to one year (YYYY).
+        in: query
+        name: year
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one year (YYYY).
+          title: Year
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtOcBudgetRead'
+                title: Response List Budgets Api V1 Management Outside Counsel Budgets
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List budgets, optionally for one year
+      tags:
+      - management-outside-counsel
+    put:
+      operationId: upsert_budget_api_v1_management_outside_counsel_budgets_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcBudgetUpsert'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcBudgetRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Set the budget for one quarter (insert or replace)
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/budgets/{budget_id}:
+    delete:
+      operationId: delete_budget_api_v1_management_outside_counsel_budgets__budget_id__delete
+      parameters:
+      - in: path
+        name: budget_id
+        required: true
+        schema:
+          title: Budget Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Budget not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Delete one budget row
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/firms:
+    get:
+      operationId: list_firms_api_v1_management_outside_counsel_firms_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtOcFirmRead'
+                title: Response List Firms Api V1 Management Outside Counsel Firms
+                  Get
+                type: array
+          description: Successful Response
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List the caller's outside firms with partners and rate flags
+      tags:
+      - management-outside-counsel
+    post:
+      operationId: create_firm_api_v1_management_outside_counsel_firms_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcFirmCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcFirmRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Add an outside firm
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/firms/{firm_id}:
+    delete:
+      operationId: delete_firm_api_v1_management_outside_counsel_firms__firm_id__delete
+      parameters:
+      - in: path
+        name: firm_id
+        required: true
+        schema:
+          title: Firm Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Firm not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a firm (its invoices drop out of every total)
+      tags:
+      - management-outside-counsel
+    get:
+      operationId: get_firm_api_v1_management_outside_counsel_firms__firm_id__get
+      parameters:
+      - in: path
+        name: firm_id
+        required: true
+        schema:
+          title: Firm Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcFirmRead'
+          description: Successful Response
+        '404':
+          description: Firm not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch one firm
+      tags:
+      - management-outside-counsel
+    patch:
+      operationId: update_firm_api_v1_management_outside_counsel_firms__firm_id__patch
+      parameters:
+      - in: path
+        name: firm_id
+        required: true
+        schema:
+          title: Firm Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcFirmUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcFirmRead'
+          description: Successful Response
+        '404':
+          description: Firm not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Update a firm (name, discount, rate increase, notes)
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/firms/{firm_id}/partners:
+    post:
+      operationId: create_partner_api_v1_management_outside_counsel_firms__firm_id__partners_post
+      parameters:
+      - in: path
+        name: firm_id
+        required: true
+        schema:
+          title: Firm Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcPartnerCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcPartnerRead'
+          description: Successful Response
+        '404':
+          description: Firm or stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Record a partner the GC chose at this firm
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/invoices:
+    get:
+      operationId: list_invoices_api_v1_management_outside_counsel_invoices_get
+      parameters:
+      - description: Filter to one firm.
+        in: query
+        name: firm_id
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one firm.
+          title: Firm Id
+      - description: Filter to one quarter (YYYY-Qn).
+        in: query
+        name: period
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one quarter (YYYY-Qn).
+          title: Period
+      - description: Filter to one year (YYYY).
+        in: query
+        name: year
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one year (YYYY).
+          title: Year
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtOcInvoiceRead'
+                title: Response List Invoices Api V1 Management Outside Counsel Invoices
+                  Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List invoices (newest first) with lines and staffing flags
+      tags:
+      - management-outside-counsel
+    post:
+      operationId: create_invoice_api_v1_management_outside_counsel_invoices_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcInvoiceCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcInvoiceRead'
+          description: Successful Response
+        '404':
+          description: Firm not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Record an invoice, line by line
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/invoices/{invoice_id}:
+    delete:
+      operationId: delete_invoice_api_v1_management_outside_counsel_invoices__invoice_id__delete
+      parameters:
+      - in: path
+        name: invoice_id
+        required: true
+        schema:
+          title: Invoice Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Invoice not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete an invoice
+      tags:
+      - management-outside-counsel
+    get:
+      operationId: get_invoice_api_v1_management_outside_counsel_invoices__invoice_id__get
+      parameters:
+      - in: path
+        name: invoice_id
+        required: true
+        schema:
+          title: Invoice Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcInvoiceRead'
+          description: Successful Response
+        '404':
+          description: Invoice not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Fetch one invoice
+      tags:
+      - management-outside-counsel
+    patch:
+      operationId: update_invoice_api_v1_management_outside_counsel_invoices__invoice_id__patch
+      parameters:
+      - in: path
+        name: invoice_id
+        required: true
+        schema:
+          title: Invoice Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcInvoiceUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcInvoiceRead'
+          description: Successful Response
+        '404':
+          description: Invoice or firm not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Update an invoice; ``lines`` replaces all lines
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/partners/{partner_id}:
+    delete:
+      operationId: delete_partner_api_v1_management_outside_counsel_partners__partner_id__delete
+      parameters:
+      - in: path
+        name: partner_id
+        required: true
+        schema:
+          title: Partner Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Partner not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Remove a partner from a firm (soft)
+      tags:
+      - management-outside-counsel
+    patch:
+      description: '``status=''left_firm''`` stamps ``left_at`` (today unless given)
+        and puts a RED item on Urgent Matters until the GC resolves it with ``status=''replaced''``
+        (chose a new partner) or ``''followed''`` (the work follows the partner to
+        the new firm).'
+      operationId: update_partner_api_v1_management_outside_counsel_partners__partner_id__patch
+      parameters:
+      - in: path
+        name: partner_id
+        required: true
+        schema:
+          title: Partner Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcPartnerUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcPartnerRead'
+          description: Successful Response
+        '404':
+          description: Partner or stakeholder not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Update a partner — status='left_firm' raises a red alert
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/summary:
+    get:
+      description: 'One call for the module page: budget vs actual per quarter of
+        ``year`` (default: this year) with a traffic-light band (110%+ yellow, 125%+
+        red), spend by firm and by practice area, staffing flags, firms below the
+        10% discount floor or above the 5% increase cap, partners marked as having
+        left their firm, and value-ledger totals by category.'
+      operationId: get_summary_api_v1_management_outside_counsel_summary_get
+      parameters:
+      - description: Year (YYYY); default this year.
+        in: query
+        name: year
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Year (YYYY); default this year.
+          title: Year
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcSummaryRead'
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: 'Outside-counsel dashboard: budget vs actual, firms, flags, value ledger'
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/value-entries:
+    get:
+      operationId: list_value_entries_api_v1_management_outside_counsel_value_entries_get
+      parameters:
+      - description: Filter to one year (YYYY).
+        in: query
+        name: year
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one year (YYYY).
+          title: Year
+      - description: Filter to one category.
+        in: query
+        name: category
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter to one category.
+          title: Category
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MgmtOcValueEntryRead'
+                title: Response List Value Entries Api V1 Management Outside Counsel
+                  Value Entries Get
+                type: array
+          description: Successful Response
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: List value-ledger entries
+      tags:
+      - management-outside-counsel
+    post:
+      operationId: create_value_entry_api_v1_management_outside_counsel_value_entries_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcValueEntryCreate'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcValueEntryRead'
+          description: Successful Response
+        '404':
+          description: Document not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Add a value-ledger entry (method note and source required)
+      tags:
+      - management-outside-counsel
+  /api/v1/management/outside-counsel/value-entries/{entry_id}:
+    delete:
+      operationId: delete_value_entry_api_v1_management_outside_counsel_value_entries__entry_id__delete
+      parameters:
+      - in: path
+        name: entry_id
+        required: true
+        schema:
+          title: Entry Id
+          type: string
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Value entry not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Soft-delete a value-ledger entry
+      tags:
+      - management-outside-counsel
+    patch:
+      operationId: update_value_entry_api_v1_management_outside_counsel_value_entries__entry_id__patch
+      parameters:
+      - in: path
+        name: entry_id
+        required: true
+        schema:
+          title: Entry Id
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MgmtOcValueEntryUpdate'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MgmtOcValueEntryRead'
+          description: Successful Response
+        '404':
+          description: Value entry or document not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      security:
+      - OAuth2PasswordBearer: []
+      summary: Update a value-ledger entry
+      tags:
+      - management-outside-counsel
   /api/v1/management/team-members:
     get:
       description: Active (non-deleted) team members owned by the caller, newest first,
@@ -13654,7 +15429,9 @@ paths:
   /api/v1/management/urgent-matters:
     get:
       description: 'Computed and read-only: scans the caller''s open commitments,
-        stakeholder cadence breaches, and KPIs at or below 80% attainment, and buckets
+        stakeholder cadence breaches, KPIs at or below 80% attainment, and outside-counsel
+        signals (discount below 10% and departed partners red; rate increases above
+        5% yellow; quarter spend at 125%+ of budget red, 110%+ yellow), and buckets
         findings into ``red`` / ``yellow`` per the triage rule set (overdue commitments
         and regulator/board-chair/CEO commitments inside a week are red; other commitments
         due in the next 5 days, regulator items 8-14 days out, cadence breaches, and

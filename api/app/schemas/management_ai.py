@@ -29,7 +29,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-MgmtAiJobType = Literal["pre_meeting_brief", "review_prep", "kpi_draft"]
+MgmtAiJobType = Literal["pre_meeting_brief", "review_prep", "kpi_draft", "spend_story"]
 """Job types — mirrors ``app.models.management_ai.MGMT_AI_JOB_TYPES``."""
 
 MgmtAiJobStatus = Literal["pending", "running", "done", "error"]
@@ -84,6 +84,8 @@ class MgmtAiJobCreate(BaseModel):
     * ``review_prep`` — ``team_member_id`` required, no
       ``stakeholder_id``.
     * ``kpi_draft`` — no subject; ``answers`` required and non-empty.
+    * ``spend_story`` — no subject, no answers; drafts the CFO-language
+      outside-counsel memo for the current year.
     """
 
     model_config = ConfigDict(extra="forbid")

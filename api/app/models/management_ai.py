@@ -41,7 +41,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
-MGMT_AI_JOB_TYPES: tuple[str, ...] = ("pre_meeting_brief", "review_prep", "kpi_draft")
+MGMT_AI_JOB_TYPES: tuple[str, ...] = (
+    "pre_meeting_brief",
+    "review_prep",
+    "kpi_draft",
+    "spend_story",
+)
 """Canonical ``job_type`` values (CHECK-constrained at the DB)."""
 
 MGMT_AI_JOB_STATUSES: tuple[str, ...] = ("pending", "running", "done", "error")

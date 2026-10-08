@@ -157,6 +157,8 @@ async def run_management_ai_job(
             await _run_pre_meeting_brief(db, job, gateway=gateway, model=model)
         elif job.job_type == "review_prep":
             await _run_review_prep(db, job, gateway=gateway, model=model)
+        elif job.job_type == "spend_story":
+            await _run_spend_story(db, job, gateway=gateway, model=model)
         else:  # kpi_draft — the CHECK constraint admits no other value.
             await _run_kpi_draft(db, job, gateway=gateway, model=model)
     except Exception as exc:
@@ -718,6 +720,185 @@ async def _format_kpi(db: AsyncSession, kpi: MgmtKpi, *, limit: int | None) -> s
     else:
         lines.append("series: (no datapoints recorded)")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# spend_story
+# ---------------------------------------------------------------------------
+
+SPEND_STORY_MAX_TOKENS = 3000
+"""Completion budget for the CFO spend memo."""
+
+MAX_LEDGER_ENTRIES = 40
+"""Value-ledger entries (newest first) included in a spend-story context."""
+
+
+async def _run_spend_story(
+    db: AsyncSession,
+    job: MgmtAiJob,
+    *,
+    gateway: GatewayClient,
+    model: str,
+) -> None:
+    year = dt.now(tz=UTC).year
+    context = await _build_spend_story_context(db, job.owner_id, year)
+
+    system = (
+        _load_prompt("spend_story.md").replace("{year}", str(year)).replace("{today}", _today())
+    )
+    content = await _dispatch(
+        gateway=gateway,
+        model=model,
+        messages=[
+            ChatCompletionMessage(role="system", content=system),
+            ChatCompletionMessage(role="user", content=context),
+        ],
+        max_tokens=SPEND_STORY_MAX_TOKENS,
+    )
+    job.result_md = content
+    _finish(job, status="done")
+
+
+async def _build_spend_story_context(db: AsyncSession, owner_id: uuid.UUID, year: int) -> str:
+    """The Outside Counsel summary, panel and value ledger as plain text."""
+
+    # Imported here, not at module top: app.api's package init imports
+    # app.api.management_ai, which imports this module — a top-level
+    # import would be circular whenever the runner is imported first.
+    from app.api.management_outside_counsel import (
+        CATEGORY_LABELS,
+        build_summary,
+        firm_flags,
+    )
+    from app.models.management_outside_counsel import (
+        MgmtOcFirm,
+        MgmtOcFirmPartner,
+        MgmtOcValueEntry,
+    )
+
+    summary = await build_summary(db, owner_id, year)
+    if summary.year_actual == "0.00" and summary.value_total == "0.00":
+        raise _ContextError(f"there is no outside-counsel spend or value data for {year} yet")
+
+    parts = [f"# Outside-counsel context for {year}"]
+
+    lines = ["## Budget vs actual by quarter"]
+    for q in summary.quarters:
+        budget = f"${q.budget}" if q.budget is not None else "no budget set"
+        pct = f"{q.pct_of_budget}% of budget" if q.pct_of_budget is not None else "n/a"
+        lines.append(f"- [spend: {q.period}] actual ${q.actual}; {budget}; {pct}; band {q.band}")
+    year_budget = f"${summary.year_budget}" if summary.year_budget else "no budget set"
+    year_pct = summary.year_pct_of_budget or "n/a"
+    lines.append(
+        f"- [spend: {year} total] actual ${summary.year_actual}; {year_budget}; {year_pct}%"
+    )
+    parts.append("\n".join(lines))
+
+    lines = ["## Spend by firm"]
+    lines += [
+        f"- [firm: {r.label}] ${r.amount} across {r.count} invoice(s)" for r in summary.by_firm
+    ]
+    parts.append("\n".join(lines) if summary.by_firm else "## Spend by firm\n(none)")
+
+    lines = ["## Spend by practice area"]
+    for r in summary.by_practice_area:
+        budget = f"; area budget ${r.budget}" if r.budget else ""
+        lines.append(f"- [area: {r.label}] ${r.amount}{budget}")
+    parts.append(
+        "\n".join(lines) if summary.by_practice_area else "## Spend by practice area\n(none)"
+    )
+
+    firms = (
+        (
+            await db.execute(
+                select(MgmtOcFirm)
+                .where(MgmtOcFirm.owner_id == owner_id, MgmtOcFirm.deleted_at.is_(None))
+                .order_by(MgmtOcFirm.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    partners = (
+        (
+            await db.execute(
+                select(MgmtOcFirmPartner).where(
+                    MgmtOcFirmPartner.firm_id.in_([f.id for f in firms]),
+                    MgmtOcFirmPartner.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+        if firms
+        else []
+    )
+    lines = [
+        "## Panel: rate terms and chosen partners "
+        f"(policy: discount >= {summary.min_discount_pct}%, increase <= "
+        f"{summary.max_rate_increase_pct}%)"
+    ]
+    for f in firms:
+        below, above = firm_flags(f)
+        flags = [
+            x for x, on in (("BELOW DISCOUNT FLOOR", below), ("ABOVE INCREASE CAP", above)) if on
+        ]
+        chosen = ", ".join(
+            f"{p.name} ({p.status.replace('_', ' ')})" for p in partners if p.firm_id == f.id
+        )
+        lines.append(
+            f"- [firm: {f.name}] discount {f.discount_pct if f.discount_pct is not None else '?'}%, "
+            f"increase {f.rate_increase_pct if f.rate_increase_pct is not None else '?'}%"
+            f"{' for ' + str(f.rate_year) if f.rate_year else ''}; partners: {chosen or 'none recorded'}"
+            f"{'; ' + ', '.join(flags) if flags else ''}"
+        )
+    parts.append("\n".join(lines))
+
+    lines = [
+        f"## Staffing flags (more than {summary.max_billers_per_task} people on one task, one day)"
+    ]
+    lines += [
+        f"- [invoice: {fl.invoice_number or fl.invoice_id}] {fl.firm_name}, {fl.work_date}: "
+        f"{fl.task!r} billed by {', '.join(fl.timekeepers)} (${fl.amount})"
+        for fl in summary.staffing_flags
+    ]
+    parts.append("\n".join(lines) if summary.staffing_flags else lines[0] + "\n(none)")
+
+    entries = (
+        (
+            await db.execute(
+                select(MgmtOcValueEntry)
+                .where(
+                    MgmtOcValueEntry.owner_id == owner_id,
+                    MgmtOcValueEntry.deleted_at.is_(None),
+                    MgmtOcValueEntry.period.like(f"{year}-Q%"),
+                )
+                .order_by(MgmtOcValueEntry.period.desc(), MgmtOcValueEntry.created_at.desc())
+                .limit(MAX_LEDGER_ENTRIES)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    lines = [f"## Value ledger (total ${summary.value_total})"]
+    for e in entries:
+        lines.append(
+            f"- [ledger: {e.period} {CATEGORY_LABELS.get(e.category, e.category)}] "
+            f"${e.amount} — {e.description}. Method: {e.method_note}. Source: {e.source}."
+        )
+    parts.append("\n".join(lines) if entries else lines[0] + "\n(no entries)")
+
+    return _cap_context("\n\n".join(parts))
+
+
+def _cap_context(text: str) -> str:
+    if len(text) <= TOTAL_CONTEXT_CHAR_BUDGET:
+        return text
+    return (
+        text[:TOTAL_CONTEXT_CHAR_BUDGET]
+        + "\n\nNOTE: the context was truncated to fit the budget — treat absent "
+        "detail as unknown, not as absent in reality."
+    )
 
 
 # ---------------------------------------------------------------------------

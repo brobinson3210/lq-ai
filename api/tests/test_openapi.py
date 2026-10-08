@@ -243,6 +243,18 @@ EXPECTED_PATHS: frozenset[str] = frozenset(
         "/api/v1/management/ai-jobs/{job_id}",
         # Management tab — Urgent Matters (computed triage feed)
         "/api/v1/management/urgent-matters",
+        # Management tab — Outside Counsel module
+        "/api/v1/management/outside-counsel/firms",
+        "/api/v1/management/outside-counsel/firms/{firm_id}",
+        "/api/v1/management/outside-counsel/firms/{firm_id}/partners",
+        "/api/v1/management/outside-counsel/partners/{partner_id}",
+        "/api/v1/management/outside-counsel/budgets",
+        "/api/v1/management/outside-counsel/budgets/{budget_id}",
+        "/api/v1/management/outside-counsel/invoices",
+        "/api/v1/management/outside-counsel/invoices/{invoice_id}",
+        "/api/v1/management/outside-counsel/value-entries",
+        "/api/v1/management/outside-counsel/value-entries/{entry_id}",
+        "/api/v1/management/outside-counsel/summary",
     }
 )
 
@@ -391,7 +403,19 @@ async def test_openapi_paths_match_sketch() -> None:
     # /api/v1/management/ai-jobs/{job_id}
     # Management tab Urgent Matters adds one new path (158 -> 159):
     # /api/v1/management/urgent-matters
-    assert len(actual) == 159
+    # Management tab Outside Counsel module adds eleven new paths (159 -> 170):
+    # /api/v1/management/outside-counsel/firms
+    # /api/v1/management/outside-counsel/firms/{firm_id}
+    # /api/v1/management/outside-counsel/firms/{firm_id}/partners
+    # /api/v1/management/outside-counsel/partners/{partner_id}
+    # /api/v1/management/outside-counsel/budgets
+    # /api/v1/management/outside-counsel/budgets/{budget_id}
+    # /api/v1/management/outside-counsel/invoices
+    # /api/v1/management/outside-counsel/invoices/{invoice_id}
+    # /api/v1/management/outside-counsel/value-entries
+    # /api/v1/management/outside-counsel/value-entries/{entry_id}
+    # /api/v1/management/outside-counsel/summary
+    assert len(actual) == 170
 
 
 @pytest.mark.unit

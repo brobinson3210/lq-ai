@@ -801,3 +801,119 @@ async def test_owner_isolation_404(
     assert resp.status_code == 400
     resp = await client.get(f"{JOBS_URL}/{uuid.uuid4()}", headers=_bearer(user_a))
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# spend_story (Outside Counsel CFO memo)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_spend_story_rejects_subjects_and_answers(
+    client: AsyncClient, db_session: AsyncSession, user_a: User
+) -> None:
+    headers = _bearer(user_a)
+    stakeholder = await _make_stakeholder(db_session, user_a)
+    resp = await client.post(
+        JOBS_URL,
+        headers=headers,
+        json={"job_type": "spend_story", "stakeholder_id": str(stakeholder.id)},
+    )
+    assert resp.status_code == 422
+    resp = await client.post(
+        JOBS_URL, headers=headers, json={"job_type": "spend_story", "answers": _ANSWERS}
+    )
+    assert resp.status_code == 422
+    with patch.object(management_ai_module, "_run_in_background", _noop_background):
+        resp = await client.post(JOBS_URL, headers=headers, json={"job_type": "spend_story"})
+    assert resp.status_code == 202, resp.text
+
+
+async def test_run_spend_story_happy_path(db_session: AsyncSession, user_a: User) -> None:
+    from app.models import (
+        MgmtOcBudget,
+        MgmtOcFirm,
+        MgmtOcFirmPartner,
+        MgmtOcInvoice,
+        MgmtOcInvoiceLine,
+        MgmtOcValueEntry,
+    )
+
+    year = datetime.datetime.now(tz=datetime.UTC).year
+    firm = MgmtOcFirm(
+        owner_id=user_a.id,
+        name="Hartwell & Crane LLP",
+        discount_pct=Decimal("8"),
+        rate_increase_pct=Decimal("6"),
+        rate_year=year,
+    )
+    db_session.add(firm)
+    await db_session.flush()
+    db_session.add(MgmtOcFirmPartner(firm_id=firm.id, name="Elliot Marchetti", status="active"))
+    db_session.add(
+        MgmtOcBudget(owner_id=user_a.id, period=f"{year}-Q1", practice_area="all", amount=1000)
+    )
+    invoice = MgmtOcInvoice(
+        owner_id=user_a.id,
+        firm_id=firm.id,
+        invoice_number="HC-101",
+        invoice_date=datetime.date(year, 2, 28),
+        period=f"{year}-Q1",
+        practice_area="corporate",
+        status="received",
+    )
+    db_session.add(invoice)
+    await db_session.flush()
+    for who in ("Elliot Marchetti", "Aaron Feldstein", "Chloe Bertrand"):
+        db_session.add(
+            MgmtOcInvoiceLine(
+                invoice_id=invoice.id,
+                work_date=datetime.date(year, 2, 3),
+                timekeeper=who,
+                title="associate",
+                task="Call re term sheet",
+                hours=Decimal("1"),
+                rate=Decimal("400"),
+                amount=Decimal("400"),
+            )
+        )
+    db_session.add(
+        MgmtOcValueEntry(
+            owner_id=user_a.id,
+            period=f"{year}-Q1",
+            category="self_service_savings",
+            amount=Decimal("342000"),
+            description="FastLane self-service contracts",
+            method_note="Blended historical attorney cost per contract type",
+            source="CLM export, Q1",
+        )
+    )
+    await db_session.flush()
+    job = await _make_job(db_session, user_a, job_type="spend_story")
+
+    gateway = _StubGateway(contents=["## Headline\nSpend is over budget. [spend: Q1]"])
+    await run_management_ai_job(db_session, job_id=job.id, gateway=gateway)  # type: ignore[arg-type]
+
+    await db_session.refresh(job)
+    assert job.status == "done", job.error
+    assert job.result_md is not None and job.result_md.startswith("## Headline")
+    request = gateway.calls_received[0]
+    system = request.messages[0].content
+    context = request.messages[1].content
+    assert str(year) in system  # {year} filled
+    assert f"[spend: {year}-Q1] actual $1200.00; $1000.00; 120.0% of budget; band yellow" in context
+    assert "[firm: Hartwell & Crane LLP]" in context
+    assert "BELOW DISCOUNT FLOOR" in context and "ABOVE INCREASE CAP" in context
+    assert "Elliot Marchetti (active)" in context
+    assert "[invoice: HC-101]" in context
+    assert "Method: Blended historical attorney cost per contract type." in context
+    assert "Source: CLM export, Q1." in context
+
+
+async def test_run_spend_story_without_data_errors(db_session: AsyncSession, user_a: User) -> None:
+    job = await _make_job(db_session, user_a, job_type="spend_story")
+    gateway = _StubGateway(contents=["unused"])
+    await run_management_ai_job(db_session, job_id=job.id, gateway=gateway)  # type: ignore[arg-type]
+    await db_session.refresh(job)
+    assert job.status == "error"
+    assert "no outside-counsel spend or value data" in (job.error or "")
+    assert gateway.calls_received == []

@@ -6482,13 +6482,18 @@ paths:
       tags: [management-urgent]
       summary: The "Urgent Matters" feed — red (act today) and yellow (the next 5 days)
       description: |
-        Computed and read-only; no tables of its own. Scans three
+        Computed and read-only; no tables of its own. Scans four
         sources — open commitments (both directions), stakeholder
-        cadence breaches, and KPIs at or below 80% attainment (below
-        the green band) — and buckets findings per the triage rule
-        set. RED: an overdue open commitment; a regulator/auditor,
-        board-chair, or CEO commitment due within 7 days; a
-        C-suite-peer commitment due within 3 days. YELLOW: any other
+        cadence breaches, KPIs at or below 80% attainment (below
+        the green band), and outside counsel — and buckets findings per
+        the triage rule set. RED: an overdue open commitment; a
+        regulator/auditor, board-chair, or CEO commitment due within 7
+        days; a C-suite-peer commitment due within 3 days; a chosen
+        outside-counsel partner marked as having left their firm; a
+        firm below the 10% discount floor; quarter outside-counsel
+        spend at 125%+ of budget (current or previous quarter).
+        YELLOW: quarter spend at 110-124% of budget; a firm's hourly
+        increase above 5%; any other
         commitment due within 5 days (the band is titled "needs your
         attention in the next 5 days", and rolls off today's date); a
         regulator/auditor commitment
@@ -6506,10 +6511,334 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: The red/yellow triage feed (combined cap of 10 items)
+          description: The red/yellow triage feed (up to 10 reds and 5 yellows)
           content:
             application/json:
               schema: {$ref: '#/components/schemas/MgmtUrgentMatters'}
+
+  /api/v1/management/outside-counsel/firms:
+    post:
+      tags: [management-outside-counsel]
+      summary: Add an outside firm
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcFirmCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcFirm'}
+        '422': {description: Validation error}
+    get:
+      tags: [management-outside-counsel]
+      summary: List firms with chosen partners and rate flags
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MgmtOcFirm'}}
+
+  /api/v1/management/outside-counsel/firms/{firm_id}:
+    parameters:
+      - {name: firm_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [management-outside-counsel]
+      summary: Fetch one firm
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcFirm'}
+        '404': {description: Not found (or another user's)}
+    patch:
+      tags: [management-outside-counsel]
+      summary: Update a firm (name, discount, rate increase, notes)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcFirmUpdate'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcFirm'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    delete:
+      tags: [management-outside-counsel]
+      summary: Soft-delete a firm (its invoices drop out of every total)
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found (or another user's)}
+
+  /api/v1/management/outside-counsel/firms/{firm_id}/partners:
+    parameters:
+      - {name: firm_id, in: path, required: true, schema: {type: string, format: uuid}}
+    post:
+      tags: [management-outside-counsel]
+      summary: Record a partner the GC chose at this firm
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcPartnerCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcPartner'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+
+  /api/v1/management/outside-counsel/partners/{partner_id}:
+    parameters:
+      - {name: partner_id, in: path, required: true, schema: {type: string, format: uuid}}
+    patch:
+      tags: [management-outside-counsel]
+      summary: Update a partner; status=left_firm raises a red Urgent Matters item until replaced/followed
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcPartnerUpdate'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcPartner'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    delete:
+      tags: [management-outside-counsel]
+      summary: Remove a partner (soft)
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found (or another user's)}
+
+  /api/v1/management/outside-counsel/budgets:
+    put:
+      tags: [management-outside-counsel]
+      summary: Set the budget for one quarter and area (insert or replace)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcBudgetUpsert'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcBudget'}
+        '422': {description: Validation error}
+    get:
+      tags: [management-outside-counsel]
+      summary: List budgets
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: year, in: query, required: false, schema: {type: string}, description: 'YYYY'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MgmtOcBudget'}}
+
+  /api/v1/management/outside-counsel/budgets/{budget_id}:
+    parameters:
+      - {name: budget_id, in: path, required: true, schema: {type: string, format: uuid}}
+    delete:
+      tags: [management-outside-counsel]
+      summary: Delete one budget row
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found (or another user's)}
+
+  /api/v1/management/outside-counsel/invoices:
+    post:
+      tags: [management-outside-counsel]
+      summary: Record an invoice line by line (total = sum of lines; period from invoice_date)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcInvoiceCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcInvoice'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    get:
+      tags: [management-outside-counsel]
+      summary: List invoices with lines and staffing flags
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: firm_id, in: query, required: false, schema: {type: string}, description: 'firm UUID'}
+        - {name: period, in: query, required: false, schema: {type: string}, description: 'YYYY-Qn'}
+        - {name: year, in: query, required: false, schema: {type: string}, description: 'YYYY'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MgmtOcInvoice'}}
+
+  /api/v1/management/outside-counsel/invoices/{invoice_id}:
+    parameters:
+      - {name: invoice_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [management-outside-counsel]
+      summary: Fetch one invoice
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcInvoice'}
+        '404': {description: Not found (or another user's)}
+    patch:
+      tags: [management-outside-counsel]
+      summary: Update an invoice; lines, when present, replaces all lines
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcInvoiceUpdate'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcInvoice'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    delete:
+      tags: [management-outside-counsel]
+      summary: Soft-delete an invoice
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found (or another user's)}
+
+  /api/v1/management/outside-counsel/value-entries:
+    post:
+      tags: [management-outside-counsel]
+      summary: Add a value-ledger entry (method_note and source required)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcValueEntryCreate'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcValueEntry'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    get:
+      tags: [management-outside-counsel]
+      summary: List value-ledger entries
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: year, in: query, required: false, schema: {type: string}, description: 'YYYY'}
+        - {name: category, in: query, required: false, schema: {type: string}, description: 'ledger category'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/MgmtOcValueEntry'}}
+
+  /api/v1/management/outside-counsel/value-entries/{entry_id}:
+    parameters:
+      - {name: entry_id, in: path, required: true, schema: {type: string, format: uuid}}
+    patch:
+      tags: [management-outside-counsel]
+      summary: Update a value-ledger entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MgmtOcValueEntryUpdate'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcValueEntry'}
+        '404': {description: Not found (or another user's)}
+        '422': {description: Validation error}
+    delete:
+      tags: [management-outside-counsel]
+      summary: Soft-delete a value-ledger entry
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Deleted}
+        '404': {description: Not found (or another user's)}
+
+  /api/v1/management/outside-counsel/summary:
+    get:
+      tags: [management-outside-counsel]
+      summary: Dashboard - budget vs actual by quarter (110% yellow, 125% red), spend by firm and practice area, staffing flags, rate flags, departed partners, value-ledger totals
+      security:
+        - bearerAuth: []
+      parameters:
+        - {name: year, in: query, required: false, schema: {type: string}, description: 'YYYY, default this year'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MgmtOcSummary'}
 
 # ============================================================
 # COMPONENTS
@@ -9410,7 +9739,7 @@ components:
       required: [job_type]
       additionalProperties: false
       properties:
-        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft]}
+        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft, spend_story]}
         stakeholder_id: {type: string, format: uuid, nullable: true}
         team_member_id: {type: string, format: uuid, nullable: true}
         answers:
@@ -9436,7 +9765,7 @@ components:
       required: [id, job_type, status, created_at]
       properties:
         id: {type: string, format: uuid}
-        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft]}
+        job_type: {type: string, enum: [pre_meeting_brief, review_prep, kpi_draft, spend_story]}
         status: {type: string, enum: [pending, running, done, error]}
         stakeholder_id: {type: string, format: uuid, nullable: true}
         team_member_id: {type: string, format: uuid, nullable: true}
@@ -9469,7 +9798,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [commitment, cadence, kpi]
+          enum: [commitment, cadence, kpi, outside_counsel]
           description: Which source produced the item.
         title:
           type: string
@@ -9496,12 +9825,18 @@ components:
         stakeholder_id: {type: string, format: uuid, nullable: true}
         stakeholder_name: {type: string, nullable: true}
         kpi_id: {type: string, format: uuid, nullable: true}
+        firm_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Outside-counsel items about one firm.
         link:
           type: string
           description: |
             Frontend route — commitments/cadence:
             /lq-ai/management/stakeholders/{stakeholder_id}; KPIs:
-            /lq-ai/management/kpis/{kpi_id}.
+            /lq-ai/management/kpis/{kpi_id}; outside counsel:
+            /lq-ai/management/outside-counsel.
 
     MgmtUrgentMatters:
       type: object
@@ -9515,7 +9850,292 @@ components:
         yellow:
           type: array
           items: {$ref: '#/components/schemas/MgmtUrgentItem'}
-          description: Act this week. Commitments (by due date), then cadence breaches (largest gap first), then KPIs (worst attainment first). Combined red+yellow cap is 10; reds survive the cap first.
+          description: Act this week. Commitments (by due date), then cadence breaches (largest gap first), then KPIs (worst attainment first), then outside-counsel items. Capped at 5 (reds are capped separately at 10).
+
+    MgmtOcPartner:
+      type: object
+      required: [id, firm_id, name, status, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        firm_id: {type: string, format: uuid}
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        name: {type: string}
+        practice_area: {type: string, nullable: true}
+        status: {type: string, enum: [active, left_firm, replaced, followed]}
+        left_at: {type: string, format: date, nullable: true}
+        resolution_note: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    MgmtOcPartnerCreate:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        practice_area: {type: string, nullable: true, enum: [commercial, corporate, employment, ip, litigation, privacy, regulatory, other]}
+
+    MgmtOcPartnerUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        stakeholder_id: {type: string, format: uuid, nullable: true}
+        practice_area: {type: string, nullable: true}
+        status: {type: string, enum: [active, left_firm, replaced, followed]}
+        left_at: {type: string, format: date, nullable: true}
+        resolution_note: {type: string, nullable: true}
+
+    MgmtOcFirm:
+      type: object
+      required: [id, owner_id, name, created_at, updated_at, partners, below_discount_floor, above_increase_cap, spend_total, invoice_count]
+      properties:
+        id: {type: string, format: uuid}
+        owner_id: {type: string, format: uuid}
+        name: {type: string}
+        discount_pct: {type: string, nullable: true}
+        rate_increase_pct: {type: string, nullable: true}
+        rate_year: {type: integer, nullable: true}
+        notes_md: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        partners: {type: array, items: {$ref: '#/components/schemas/MgmtOcPartner'}}
+        below_discount_floor: {type: boolean, description: discount_pct under the 10% minimum}
+        above_increase_cap: {type: boolean, description: rate_increase_pct over the 5% cap}
+        spend_total: {type: string, description: 'Decimal as string'}
+        invoice_count: {type: integer}
+
+    MgmtOcFirmCreate:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        discount_pct: {type: string, nullable: true, description: '0-100'}
+        rate_increase_pct: {type: string, nullable: true}
+        rate_year: {type: integer, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    MgmtOcFirmUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        discount_pct: {type: string, nullable: true}
+        rate_increase_pct: {type: string, nullable: true}
+        rate_year: {type: integer, nullable: true}
+        notes_md: {type: string, nullable: true}
+
+    MgmtOcBudget:
+      type: object
+      required: [id, period, practice_area, amount, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        period: {type: string, example: 2026-Q1}
+        practice_area: {type: string, description: "'all' = department total"}
+        amount: {type: string, description: 'Decimal as string'}
+        notes_md: {type: string, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    MgmtOcBudgetUpsert:
+      type: object
+      required: [period, amount]
+      additionalProperties: false
+      properties:
+        period: {type: string, pattern: '^\d{4}-Q[1-4]$'}
+        practice_area: {type: string, default: all}
+        amount: {type: string, description: 'Decimal as string'}
+        notes_md: {type: string, nullable: true}
+
+    MgmtOcInvoiceLineIn:
+      type: object
+      required: [work_date, timekeeper, title, task, hours, rate]
+      additionalProperties: false
+      properties:
+        work_date: {type: string, format: date}
+        timekeeper: {type: string}
+        title: {type: string, enum: [partner, counsel, associate, paralegal, other]}
+        task: {type: string}
+        hours: {type: string, description: 'Decimal as string'}
+        rate: {type: string, description: 'Decimal as string'}
+
+    MgmtOcInvoiceLine:
+      type: object
+      required: [id, work_date, timekeeper, title, task, hours, rate, amount]
+      properties:
+        id: {type: string, format: uuid}
+        work_date: {type: string, format: date}
+        timekeeper: {type: string}
+        title: {type: string}
+        task: {type: string}
+        hours: {type: string, description: 'Decimal as string'}
+        rate: {type: string, description: 'Decimal as string'}
+        amount: {type: string, description: 'Decimal as string'}
+
+    MgmtOcStaffingFlag:
+      type: object
+      description: More than two people billed the same task on the same day (one invoice).
+      required: [invoice_id, firm_id, firm_name, work_date, task, timekeepers, amount]
+      properties:
+        invoice_id: {type: string, format: uuid}
+        invoice_number: {type: string, nullable: true}
+        firm_id: {type: string, format: uuid}
+        firm_name: {type: string}
+        work_date: {type: string, format: date}
+        task: {type: string}
+        timekeepers: {type: array, items: {type: string}}
+        amount: {type: string, description: 'Decimal as string'}
+
+    MgmtOcInvoiceCreate:
+      type: object
+      required: [firm_id, invoice_date, practice_area, lines]
+      additionalProperties: false
+      properties:
+        firm_id: {type: string, format: uuid}
+        invoice_number: {type: string, nullable: true}
+        invoice_date: {type: string, format: date}
+        practice_area: {type: string, enum: [commercial, corporate, employment, ip, litigation, privacy, regulatory, other]}
+        matter_ref: {type: string, nullable: true}
+        status: {type: string, enum: [received, paid], default: received}
+        notes_md: {type: string, nullable: true}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/MgmtOcInvoiceLineIn'}}
+
+    MgmtOcInvoiceUpdate:
+      type: object
+      additionalProperties: false
+      description: lines, when present, replaces all lines.
+      properties:
+        firm_id: {type: string, format: uuid}
+        invoice_number: {type: string, nullable: true}
+        invoice_date: {type: string, format: date}
+        practice_area: {type: string}
+        matter_ref: {type: string, nullable: true}
+        status: {type: string, enum: [received, paid]}
+        notes_md: {type: string, nullable: true}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/MgmtOcInvoiceLineIn'}}
+
+    MgmtOcInvoice:
+      type: object
+      required: [id, firm_id, firm_name, invoice_date, period, practice_area, status, total, line_count, lines, staffing_flags, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        firm_id: {type: string, format: uuid}
+        firm_name: {type: string}
+        invoice_number: {type: string, nullable: true}
+        invoice_date: {type: string, format: date}
+        period: {type: string, description: 'YYYY-Qn, derived from invoice_date'}
+        practice_area: {type: string}
+        matter_ref: {type: string, nullable: true}
+        status: {type: string}
+        notes_md: {type: string, nullable: true}
+        total: {type: string, description: 'Decimal as string'}
+        line_count: {type: integer}
+        lines: {type: array, items: {$ref: '#/components/schemas/MgmtOcInvoiceLine'}}
+        staffing_flags: {type: array, items: {$ref: '#/components/schemas/MgmtOcStaffingFlag'}}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    MgmtOcValueEntryCreate:
+      type: object
+      required: [period, category, amount, description, method_note, source]
+      additionalProperties: false
+      properties:
+        period: {type: string, pattern: '^\d{4}-Q[1-4]$'}
+        category: {type: string, enum: [self_service_savings, billing_adjustments, insourcing_avoidance, settlement_avoidance]}
+        amount: {type: string, description: 'Decimal as string'}
+        description: {type: string, minLength: 1}
+        method_note: {type: string, minLength: 1, description: How the number was calculated (mandatory)}
+        source: {type: string, minLength: 1, description: The record or document it traces to (mandatory)}
+        document_id: {type: string, format: uuid, nullable: true}
+
+    MgmtOcValueEntryUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        period: {type: string}
+        category: {type: string}
+        amount: {type: string, description: 'Decimal as string'}
+        description: {type: string, minLength: 1}
+        method_note: {type: string, minLength: 1}
+        source: {type: string, minLength: 1}
+        document_id: {type: string, format: uuid, nullable: true}
+
+    MgmtOcValueEntry:
+      type: object
+      required: [id, period, category, amount, description, method_note, source, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        period: {type: string}
+        category: {type: string}
+        amount: {type: string, description: 'Decimal as string'}
+        description: {type: string}
+        method_note: {type: string}
+        source: {type: string}
+        document_id: {type: string, format: uuid, nullable: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    MgmtOcAmountRow:
+      type: object
+      required: [key, label, amount, count]
+      properties:
+        key: {type: string}
+        label: {type: string}
+        amount: {type: string, description: 'Decimal as string'}
+        budget: {type: string, nullable: true}
+        count: {type: integer}
+
+    MgmtOcSummary:
+      type: object
+      required: [year, min_discount_pct, max_rate_increase_pct, max_billers_per_task, quarters, year_actual, by_firm, by_practice_area, staffing_flags, rate_flags, partner_alerts, value_total, value_by_category]
+      properties:
+        year: {type: integer}
+        min_discount_pct: {type: string}
+        max_rate_increase_pct: {type: string}
+        max_billers_per_task: {type: integer}
+        quarters:
+          type: array
+          items:
+            type: object
+            required: [period, actual]
+            properties:
+              period: {type: string}
+              budget: {type: string, nullable: true}
+              actual: {type: string, description: 'Decimal as string'}
+              pct_of_budget: {type: string, nullable: true}
+              band: {type: string, nullable: true, enum: [green, yellow, red]}
+        year_budget: {type: string, nullable: true}
+        year_actual: {type: string, description: 'Decimal as string'}
+        year_pct_of_budget: {type: string, nullable: true}
+        by_firm: {type: array, items: {$ref: '#/components/schemas/MgmtOcAmountRow'}}
+        by_practice_area: {type: array, items: {$ref: '#/components/schemas/MgmtOcAmountRow'}}
+        staffing_flags: {type: array, items: {$ref: '#/components/schemas/MgmtOcStaffingFlag'}}
+        rate_flags:
+          type: array
+          items:
+            type: object
+            required: [firm_id, firm_name, issue, value, band]
+            properties:
+              firm_id: {type: string, format: uuid}
+              firm_name: {type: string}
+              issue: {type: string, enum: [discount_below_floor, increase_above_cap]}
+              value: {type: string}
+              band: {type: string, enum: [green, yellow, red]}
+        partner_alerts:
+          type: array
+          items:
+            type: object
+            required: [partner_id, partner_name, firm_id, firm_name]
+            properties:
+              partner_id: {type: string, format: uuid}
+              partner_name: {type: string}
+              firm_id: {type: string, format: uuid}
+              firm_name: {type: string}
+              left_at: {type: string, format: date, nullable: true}
+        value_total: {type: string, description: 'Decimal as string'}
+        value_by_category: {type: array, items: {$ref: '#/components/schemas/MgmtOcAmountRow'}}
 
     # D8 + D8.1b — DB-backed user/team skills (ADR 0012).
     UserSkill:

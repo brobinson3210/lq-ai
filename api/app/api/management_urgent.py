@@ -4,7 +4,7 @@ Surface:
 
 * ``GET /api/v1/management/urgent-matters`` — one computed, read-only
   call that answers "what needs my attention right now". No tables of
-  its own; it scans three existing sources and buckets findings into
+  its own; it scans four existing sources and buckets findings into
   ``red`` (act today) and ``yellow`` (act this week).
 
 **Sources** (documents scanning is explicitly out of scope — later MCP
@@ -18,6 +18,10 @@ work):
 3. KPIs whose attainment is at or below 80% of target (below the
    green band of Bill's traffic-light rule), both department- and
    individual-scope.
+4. Outside counsel (Bill's round-4 answers, 2026-09-30): the panel's
+   rate terms, chosen partners who have left their firm, and spend vs
+   budget for the current and previous quarter. Thresholds live in
+   :mod:`app.api.management_outside_counsel`.
 
 **Horizon.** The red window for priority stakeholders is 7 days; the
 ordinary yellow window is 5 days, because the panel promises "needs
@@ -33,7 +37,11 @@ still means "less than one week", per Bill's round-3 answers
 * (b) an open commitment involving a regulator, auditor, board chair,
   or CEO due within 7 days;
 * (c) an open commitment involving a C-suite peer due within 3 days
-  ("urgent for them").
+  ("urgent for them");
+* (i) a chosen outside-counsel partner marked as having left their
+  firm (until resolved as replaced or followed);
+* (j) a firm whose discount is below the 10% minimum;
+* (k) quarter outside-counsel spend at 125%+ of budget.
 
 **YELLOW** = any of:
 
@@ -44,12 +52,15 @@ still means "less than one week", per Bill's round-3 answers
 * (g) a department-scope KPI at or below 80% attainment (behind, but
   not same-day);
 * (h) an individual-scope KPI at or below 80% attainment, titled with
-  the team member's name.
+  the team member's name;
+* (l) quarter outside-counsel spend at 110-124% of budget;
+* (m) a firm whose hourly rate increase is above 5%.
 
-**Ranking.** Red first — most-overdue first (most-negative
-``days_until_due``), then soonest due. Then yellow — commitments by
-due date, then cadence breaches by days-over (largest gap first), then
-KPIs by attainment ascending.
+**Ranking.** Red first — commitments most-overdue first (most-negative
+``days_until_due``), then soonest due, then outside-counsel reds. Then
+yellow — commitments by due date, then cadence breaches by days-over
+(largest gap first), then KPIs by attainment ascending, then
+outside-counsel yellows.
 
 **Caps.** Each band is capped independently: up to 10 reds and up to 5
 yellows. A single combined cap of 10 starved the yellow band entirely
@@ -60,9 +71,10 @@ cap).
 
 **Per-user isolation.** Owner-scoped exactly as the sibling Management
 modules: every query filters on ``owner_id``; soft-deleted rows never
-contribute. Read-only — no audit rows. Three batched queries total
-(commitments+stakeholders joined, stakeholders with the cadence
-aggregate, KPIs with the latest-value aggregate) — never N+1.
+contribute. Read-only — no audit rows. A fixed handful of batched
+queries (commitments+stakeholders joined, stakeholders with the cadence
+aggregate, KPIs with the latest-value aggregate, firms, departed
+partners, quarter spend and budgets) — never N+1.
 """
 
 from __future__ import annotations
@@ -79,8 +91,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import ActiveUser
 from app.api.management_kpis import _attainment_pct
+from app.api.management_outside_counsel import (
+    BUDGET_YELLOW_PCT,
+    MAX_RATE_INCREASE_PCT,
+    MIN_DISCOUNT_PCT,
+    budget_band,
+    firm_flags,
+    money,
+    pct_of,
+    period_for,
+    previous_period,
+    quarter_actuals,
+    quarter_budgets,
+)
 from app.db.session import get_db
 from app.models.management_kpi import MgmtKpi, MgmtKpiDatapoint, MgmtTeamMember
+from app.models.management_outside_counsel import MgmtOcFirm, MgmtOcFirmPartner
 from app.models.stakeholder import Stakeholder, StakeholderCommitment, StakeholderInteraction
 from app.schemas.management_urgent import UrgentItem, UrgentMattersRead
 
@@ -121,8 +147,9 @@ _TYPE_LABELS: dict[str, str] = {
 }
 
 # A ranked entry: (intra-bucket sort key, item). Sort keys are tuples
-# whose first element sequences the yellow sub-groups (0 = commitments,
-# 1 = cadence breaches, 2 = KPIs); reds sort purely by urgency.
+# whose first element sequences the sub-groups (yellow: 0 = commitments,
+# 1 = cadence breaches, 2 = KPIs, 3 = outside counsel; red: 0 =
+# commitments by urgency, 1 = outside counsel).
 _Ranked = tuple[tuple[int, int | Decimal, str], UrgentItem]
 
 
@@ -183,6 +210,29 @@ def _commitment_item(
     )
 
 
+def _oc_item(
+    *,
+    title: str,
+    why: str,
+    next_step: str,
+    firm_id: uuid.UUID | None,
+    link: str,
+) -> UrgentItem:
+    return UrgentItem(
+        kind="outside_counsel",
+        title=title,
+        why=why,
+        next_step=next_step,
+        due_date=None,
+        days_until_due=None,
+        stakeholder_id=None,
+        stakeholder_name=None,
+        kpi_id=None,
+        firm_id=firm_id,
+        link=link,
+    )
+
+
 def _classify_commitment(stakeholder_type: str, days_until_due: int) -> str | None:
     """Red / yellow / out-of-horizon for one open, dated commitment.
 
@@ -216,8 +266,10 @@ def _classify_commitment(stakeholder_type: str, days_until_due: int) -> str | No
     summary='The "Urgent Matters" feed — red (act today) and yellow (act this week)',
     description=(
         "Computed and read-only: scans the caller's open commitments, "
-        "stakeholder cadence breaches, and KPIs at or below 80% "
-        "attainment, and buckets findings into ``red`` / ``yellow`` per "
+        "stakeholder cadence breaches, KPIs at or below 80% "
+        "attainment, and outside-counsel signals (discount below 10% "
+        "and departed partners red; rate increases above 5% yellow; "
+        "quarter spend at 125%+ of budget red, 110%+ yellow), and buckets findings into ``red`` / ``yellow`` per "
         "the triage rule set (overdue commitments and regulator/board-"
         "chair/CEO commitments inside a week are red; other commitments "
         "due in the next 5 days, regulator items 8-14 days out, cadence "
@@ -350,6 +402,91 @@ async def get_urgent_matters(
         )
         # KPIs rank last among yellows, worst attainment first.
         yellow.append(((2, pct, item.title), item))
+
+    # -- Source 4: outside counsel — the panel (rate terms, departed
+    # partners) and spend vs budget for the current and previous
+    # quarter (invoices often land after quarter close).
+    oc_link = "/lq-ai/management/outside-counsel"
+    firms = (
+        (
+            await db.execute(
+                select(MgmtOcFirm).where(
+                    MgmtOcFirm.owner_id == user.id, MgmtOcFirm.deleted_at.is_(None)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for firm in firms:
+        below, above = firm_flags(firm)
+        if below:
+            item = _oc_item(
+                title=f"Discount below {MIN_DISCOUNT_PCT}%: {firm.name}",
+                why=f"{firm.name} gives {firm.discount_pct}% vs the required "
+                f"{MIN_DISCOUNT_PCT}% minimum",
+                next_step=f"Renegotiate to at least {MIN_DISCOUNT_PCT}% or move the work",
+                firm_id=firm.id,
+                link=oc_link,
+            )
+            red.append(((1, 1, item.title), item))  # (j)
+        if above:
+            year = f" for {firm.rate_year}" if firm.rate_year else ""
+            item = _oc_item(
+                title=f"Rate increase above {MAX_RATE_INCREASE_PCT}%: {firm.name}",
+                why=f"Hourly rates up {firm.rate_increase_pct}%{year} vs the "
+                f"{MAX_RATE_INCREASE_PCT}% cap",
+                next_step="Push back on the increase before the next invoice cycle",
+                firm_id=firm.id,
+                link=oc_link,
+            )
+            yellow.append(((3, 1, item.title), item))  # (m)
+
+    departed = (
+        await db.execute(
+            select(MgmtOcFirmPartner, MgmtOcFirm.name)
+            .join(MgmtOcFirm, MgmtOcFirm.id == MgmtOcFirmPartner.firm_id)
+            .where(
+                MgmtOcFirm.owner_id == user.id,
+                MgmtOcFirm.deleted_at.is_(None),
+                MgmtOcFirmPartner.deleted_at.is_(None),
+                MgmtOcFirmPartner.status == "left_firm",
+            )
+        )
+    ).all()
+    for partner, firm_name in departed:
+        since = f" on {partner.left_at.isoformat()}" if partner.left_at else ""
+        item = _oc_item(
+            title=f"Partner left: {partner.name} ({firm_name})",
+            why=f"Marked as having left {firm_name}{since} — you hire partners, not firms",
+            next_step=f"Decide: follow {partner.name} to the new firm, or choose a replacement",
+            firm_id=partner.firm_id,
+            link=oc_link,
+        )
+        red.append(((1, 0, item.title), item))  # (i)
+
+    this_q = period_for(today)
+    periods = [previous_period(this_q), this_q]
+    actuals = await quarter_actuals(db, user.id, periods)
+    budgets = await quarter_budgets(db, user.id, periods)
+    for period in periods:
+        actual = actuals.get(period, Decimal(0))
+        spend_pct = pct_of(actual, budgets.get(period))
+        band = budget_band(spend_pct)
+        if band not in ("red", "yellow") or spend_pct is None:
+            continue
+        item = _oc_item(
+            title=f"Outside counsel spend {period}: {spend_pct}% of budget",
+            why=f"${money(actual)} spent vs ${money(budgets[period])} budgeted "
+            f"(watch at {BUDGET_YELLOW_PCT}%)",
+            next_step="Review which firms drove it and re-forecast with Finance",
+            firm_id=None,
+            link=oc_link,
+        )
+        if band == "red":
+            red.append(((1, 2, item.title), item))  # (k)
+        else:
+            yellow.append(((3, 0, item.title), item))  # (l)
 
     red.sort(key=lambda r: r[0])
     yellow.sort(key=lambda r: r[0])

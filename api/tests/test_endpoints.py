@@ -383,6 +383,28 @@ IMPLEMENTED_ROUTES: set[tuple[str, str]] = {
     ("GET", "/api/v1/management/ai-jobs/{job_id}"),
     # Management tab — Urgent Matters (computed triage feed)
     ("GET", "/api/v1/management/urgent-matters"),
+    # Management tab — Outside Counsel module
+    ("POST", "/api/v1/management/outside-counsel/firms"),
+    ("GET", "/api/v1/management/outside-counsel/firms"),
+    ("GET", "/api/v1/management/outside-counsel/firms/{firm_id}"),
+    ("PATCH", "/api/v1/management/outside-counsel/firms/{firm_id}"),
+    ("DELETE", "/api/v1/management/outside-counsel/firms/{firm_id}"),
+    ("POST", "/api/v1/management/outside-counsel/firms/{firm_id}/partners"),
+    ("PATCH", "/api/v1/management/outside-counsel/partners/{partner_id}"),
+    ("DELETE", "/api/v1/management/outside-counsel/partners/{partner_id}"),
+    ("PUT", "/api/v1/management/outside-counsel/budgets"),
+    ("GET", "/api/v1/management/outside-counsel/budgets"),
+    ("DELETE", "/api/v1/management/outside-counsel/budgets/{budget_id}"),
+    ("POST", "/api/v1/management/outside-counsel/invoices"),
+    ("GET", "/api/v1/management/outside-counsel/invoices"),
+    ("GET", "/api/v1/management/outside-counsel/invoices/{invoice_id}"),
+    ("PATCH", "/api/v1/management/outside-counsel/invoices/{invoice_id}"),
+    ("DELETE", "/api/v1/management/outside-counsel/invoices/{invoice_id}"),
+    ("POST", "/api/v1/management/outside-counsel/value-entries"),
+    ("GET", "/api/v1/management/outside-counsel/value-entries"),
+    ("PATCH", "/api/v1/management/outside-counsel/value-entries/{entry_id}"),
+    ("DELETE", "/api/v1/management/outside-counsel/value-entries/{entry_id}"),
+    ("GET", "/api/v1/management/outside-counsel/summary"),
 }
 
 

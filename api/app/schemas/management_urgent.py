@@ -2,14 +2,16 @@
 
 Wire shape for ``GET /api/v1/management/urgent-matters`` — a computed,
 read-only feed with no tables of its own. The handler
-(:mod:`app.api.management_urgent`) scans three sources — open
-stakeholder commitments, stakeholder cadence breaches, and KPIs at or
-below the red attainment band — and buckets each finding into ``red``
+(:mod:`app.api.management_urgent`) scans four sources — open
+stakeholder commitments, stakeholder cadence breaches, KPIs at or
+below the yellow attainment band, and outside-counsel spend/panel
+signals — and buckets each finding into ``red``
 (same-day attention) or ``yellow`` (this-week attention).
 
 Every item carries the same shape regardless of ``kind`` so the UI can
 render one list component; source-specific fields (``due_date``,
-``stakeholder_*``, ``kpi_id``) are null when they don't apply.
+``stakeholder_*``, ``kpi_id``, ``firm_id``) are null when they don't
+apply.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-UrgentKind = Literal["commitment", "cadence", "kpi"]
+UrgentKind = Literal["commitment", "cadence", "kpi", "outside_counsel"]
 """Which source produced the item."""
 
 
@@ -37,7 +39,9 @@ class UrgentItem(BaseModel):
     * ``days_until_due`` — negative means overdue. Null for cadence and
       KPI items (no due date).
     * ``link`` — frontend route: commitments and cadence breaches point
-      at the stakeholder dossier, KPI items at the KPI detail page.
+      at the stakeholder dossier, KPI items at the KPI detail page,
+      outside-counsel items at the Outside Counsel module.
+    * ``firm_id`` — set on outside-counsel items about one firm.
     """
 
     kind: UrgentKind
@@ -49,18 +53,20 @@ class UrgentItem(BaseModel):
     stakeholder_id: uuid.UUID | None = None
     stakeholder_name: str | None = None
     kpi_id: uuid.UUID | None = None
+    firm_id: uuid.UUID | None = None
     link: str
 
 
 class UrgentMattersRead(BaseModel):
     """``GET /api/v1/management/urgent-matters`` response.
 
-    ``red`` = act today; ``yellow`` = act this week. The combined list
-    is capped at 10 items, reds surviving the cap first. Ordering
+    ``red`` = act today; ``yellow`` = act this week. Each band is
+    capped independently — up to 10 reds and up to 5 yellows. Ordering
     encodes the triage judgment: reds by ``days_until_due`` ascending
-    (most-overdue first, then soonest due); yellows as commitments (by
-    due date), then cadence breaches (largest gap first), then KPIs
-    (worst attainment first).
+    (most-overdue first, then soonest due), then outside-counsel reds;
+    yellows as commitments (by due date), then cadence breaches
+    (largest gap first), then KPIs (worst attainment first), then
+    outside-counsel yellows.
     """
 
     generated_at: datetime.datetime

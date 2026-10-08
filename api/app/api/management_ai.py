@@ -151,6 +151,11 @@ async def _check_subject(
                 f"Team member {payload.team_member_id} not found.",
                 details={"team_member_id": str(payload.team_member_id)},
             )
+    elif payload.job_type == "spend_story":
+        if payload.stakeholder_id is not None or payload.team_member_id is not None:
+            raise _unprocessable("job_type='spend_story' takes no subject id.")
+        if payload.answers:
+            raise _unprocessable("job_type='spend_story' takes no answers.")
     else:  # kpi_draft
         if payload.stakeholder_id is not None or payload.team_member_id is not None:
             raise _unprocessable("job_type='kpi_draft' takes no subject id.")
